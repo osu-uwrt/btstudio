@@ -52,8 +52,8 @@
     },
     "publish": {
       "provider": "github",
-      "owner": "AdityaGupta0",
-      "repo": "BTstudio"
+      "owner": "osu-uwrt",
+      "repo": "btstudio"
     },
     "mac": {
       "category": "public.app-category.developer-tools",
