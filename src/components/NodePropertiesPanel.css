@@ -1,0 +1,272 @@
+.node-properties-panel {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  width: 320px;
+  background-color: #2d2d2d;
+  border: 1px solid #444;
+  border-radius: 6px;
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.5);
+  z-index: 1000;
+  color: #ffffff;
+  max-height: calc(100vh - 40px);
+  display: flex;
+  flex-direction: column;
+}
+
+.panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px;
+  border-bottom: 1px solid #444;
+}
+
+.panel-header h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.close-btn {
+  background: none;
+  border: none;
+  color: #aaa;
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 3px;
+  transition: all 0.2s;
+}
+
+.close-btn:hover {
+  background-color: #3d3d3d;
+  color: #ffffff;
+}
+
+.panel-content {
+  padding: 16px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.node-info {
+  margin-bottom: 20px;
+  padding: 12px;
+  background-color: #252525;
+  border-radius: 4px;
+}
+
+.info-row {
+  display: flex;
+  margin-bottom: 8px;
+  font-size: 13px;
+}
+
+.info-row:last-child {
+  margin-bottom: 0;
+}
+
+.info-label {
+  color: #aaa;
+  min-width: 80px;
+  font-weight: 500;
+}
+
+.info-value {
+  color: #ffffff;
+  flex: 1;
+}
+
+.info-value.mono {
+  font-family: 'Courier New', monospace;
+  font-size: 12px;
+}
+
+.name-section {
+  margin-bottom: 20px;
+  padding: 12px;
+  background-color: #252525;
+  border-radius: 4px;
+}
+
+.name-section h4 {
+  margin: 0 0 4px 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: #ffffff;
+}
+
+.fields-section h4 {
+  margin: 0 0 12px 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: #aaa;
+}
+
+.field-editor {
+  margin-bottom: 20px;
+  padding: 12px;
+  background-color: #252525;
+  border-radius: 4px;
+}
+
+.field-editor:last-child {
+  margin-bottom: 0;
+}
+
+.field-label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 4px;
+  color: #ffffff;
+}
+
+.field-description {
+  font-size: 11px;
+  color: #888;
+  margin-bottom: 10px;
+  line-height: 1.4;
+}
+
+.value-type-selector {
+  display: flex;
+  gap: 0;
+  margin-bottom: 10px;
+}
+
+.type-btn {
+  flex: 1;
+  background-color: #1a1a1a;
+  border: 1px solid #444;
+  color: #aaa;
+  padding: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  transition: all 0.2s;
+}
+
+.type-btn:first-child {
+  border-radius: 3px 0 0 3px;
+  border-right: none;
+}
+
+.type-btn:last-child {
+  border-radius: 0 3px 3px 0;
+}
+
+.type-btn:hover {
+  background-color: #2a2a2a;
+}
+
+.type-btn.active {
+  background-color: #0078d4;
+  border-color: #0078d4;
+  color: #ffffff;
+}
+
+.field-input,
+.variable-select {
+  width: 100%;
+  background-color: #1a1a1a;
+  border: 1px solid #444;
+  border-radius: 3px;
+  color: #ffffff;
+  padding: 8px 10px;
+  font-size: 13px;
+  outline: none;
+  font-family: 'Courier New', monospace;
+}
+
+.field-input:focus,
+.variable-select:focus {
+  border-color: #0078d4;
+}
+
+.variable-select {
+  font-family: system-ui, -apple-system, sans-serif;
+}
+
+/* Scrollbar styling */
+.panel-content::-webkit-scrollbar {
+  width: 8px;
+}
+
+.panel-content::-webkit-scrollbar-track {
+  background: #2d2d2d;
+}
+
+.panel-content::-webkit-scrollbar-thumb {
+  background: #444;
+  border-radius: 4px;
+}
+
+.panel-content::-webkit-scrollbar-thumb:hover {
+  background: #555;
+}
+
+/* Blackboard variable input with brackets */
+.blackboard-input-wrapper {
+  display: flex;
+  align-items: center;
+  background-color: #1a1a1a;
+  border: 1px solid #444;
+  border-radius: 3px;
+  padding: 0 4px;
+}
+
+.blackboard-input-wrapper:focus-within {
+  border-color: #0078d4;
+}
+
+.bracket-prefix,
+.bracket-suffix {
+  color: #888;
+  font-family: 'Courier New', monospace;
+  font-size: 13px;
+  user-select: none;
+  padding: 0 4px;
+}
+
+.blackboard-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  padding: 8px 4px;
+  min-width: 0;
+}
+
+.blackboard-input:focus {
+  border: none;
+  outline: none;
+}
+
+/* Port field styles */
+.field-editor.port-field-input {
+  border-left: 3px solid #4CAF50;
+}
+
+.field-editor.port-field-output {
+  border-left: 3px solid #FF9800;
+}
+
+.field-label .port-badge {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 4px;
+  border-radius: 3px;
+  margin-right: 4px;
+}
+
+.field-label .port-badge.input {
+  color: #4CAF50;
+  background: rgba(76, 175, 80, 0.2);
+}
+
+.field-label .port-badge.output {
+  color: #FF9800;
+  background: rgba(255, 152, 0, 0.2);
+}

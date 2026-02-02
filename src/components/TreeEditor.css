@@ -1,0 +1,112 @@
+.tree-editor {
+  flex: 1;
+  height: 100vh;
+  background-color: #1a1a1a;
+  position: relative;
+}
+
+.react-flow {
+  background-color: #1a1a1a;
+}
+
+.react-flow__node {
+  border-radius: 6px;
+}
+
+.react-flow__edge-path {
+  stroke: #666;
+  stroke-width: 2;
+}
+
+.react-flow__edge.selected .react-flow__edge-path {
+  stroke: #0078d4;
+}
+
+.react-flow__controls {
+  background-color: #2d2d2d;
+  border: 1px solid #444;
+}
+
+.react-flow__controls-button {
+  background-color: #2d2d2d;
+  border-bottom: 1px solid #444;
+  color: #ffffff;
+}
+
+.react-flow__controls-button:hover {
+  background-color: #3d3d3d;
+}
+
+.tree-info-panel {
+  background-color: #2d2d2d;
+  border: 1px solid #444;
+  border-radius: 4px;
+  padding: 12px 16px;
+  color: #aaa;
+  font-size: 13px;
+}
+
+.info-text {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.tree-controls-panel {
+  background-color: #2d2d2d;
+  border: 1px solid #444;
+  border-radius: 4px;
+  padding: 8px;
+  display: flex;
+  gap: 8px;
+}
+
+.control-button {
+  background-color: #0078d4;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 8px 16px;
+  font-size: 13px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: background-color 0.2s;
+}
+
+.control-button:hover {
+  background-color: #106ebe;
+}
+
+.control-button:active {
+  background-color: #005a9e;
+}
+
+/* Dirty indicator */
+.dirty-indicator-text {
+  color: #fbbf24;
+  font-size: 12px;
+  padding: 0 8px;
+  display: flex;
+  align-items: center;
+}
+
+/* Tree indicator panel (shows when editing subtree) */
+.tree-indicator-panel {
+  background-color: #00BCD4;
+  border-radius: 4px;
+  padding: 6px 12px;
+  color: white;
+  font-size: 12px;
+}
+
+.editing-subtree-label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.editing-subtree-label strong {
+  font-weight: 600;
+}

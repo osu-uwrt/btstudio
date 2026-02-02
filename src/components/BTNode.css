@@ -1,0 +1,128 @@
+.bt-node {
+  background-color: #2d2d2d;
+  border: 2px solid;
+  border-radius: 6px;
+  min-width: 180px;
+  max-width: 280px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+  transition: all 0.2s;
+}
+
+.bt-node.selected {
+  box-shadow: 0 0 0 2px #0078d4, 0 4px 8px rgba(0, 0, 0, 0.4);
+}
+
+.bt-node:hover {
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.4);
+}
+
+.node-header {
+  padding: 10px 12px;
+  border-radius: 4px 4px 0 0;
+  color: #ffffff;
+}
+
+.node-title {
+  font-weight: 600;
+  font-size: 14px;
+  margin-bottom: 2px;
+}
+
+.node-category {
+  font-size: 10px;
+  opacity: 0.9;
+  text-transform: uppercase;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+
+.node-fields {
+  padding: 10px 12px;
+}
+
+.node-field {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 6px;
+  font-size: 12px;
+  align-items: baseline;
+}
+
+.node-field:last-child {
+  margin-bottom: 0;
+}
+
+.field-name {
+  color: #aaa;
+  font-weight: 500;
+  min-width: 60px;
+}
+
+.field-value {
+  color: #fff;
+  font-family: 'Courier New', monospace;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.field-value.literal {
+  color: #4EC9B0;
+}
+
+.field-value.variable {
+  color: #DCDCAA;
+  font-style: italic;
+}
+
+.node-handle {
+  width: 10px;
+  height: 10px;
+  background-color: #666;
+  border: 2px solid #1a1a1a;
+}
+
+.node-handle:hover {
+  background-color: #0078d4;
+}
+
+/* Subtree node styles */
+.bt-node.subtree-node {
+  border-style: dashed;
+}
+
+/* Port fields */
+.port-fields {
+  border-top: 1px solid #444;
+}
+
+.port-fields.input-ports {
+  background: rgba(76, 175, 80, 0.05);
+}
+
+.port-fields.output-ports {
+  background: rgba(255, 152, 0, 0.05);
+}
+
+.node-field.port-field {
+  gap: 4px;
+}
+
+.port-direction-label {
+  font-size: 9px;
+  font-weight: 700;
+  padding: 1px 3px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.port-direction-label.input {
+  color: #4CAF50;
+  background: rgba(76, 175, 80, 0.2);
+}
+
+.port-direction-label.output {
+  color: #FF9800;
+  background: rgba(255, 152, 0, 0.2);
+}

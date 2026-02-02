@@ -1,0 +1,209 @@
+/* SubTreeTabBar Styles */
+
+.subtree-tab-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  background: #1e1e2e;
+  border-bottom: 1px solid #333;
+  min-height: 36px;
+  flex-shrink: 0;
+}
+
+/* Search input */
+.tab-search {
+  display: flex;
+  align-items: center;
+  background: #2a2a3e;
+  border-radius: 4px;
+  padding: 4px 8px;
+  min-width: 150px;
+  max-width: 200px;
+}
+
+.tab-search .search-icon {
+  color: #888;
+  flex-shrink: 0;
+}
+
+.tab-search-input {
+  background: transparent;
+  border: none;
+  outline: none;
+  color: #fff;
+  font-size: 12px;
+  padding: 2px 6px;
+  width: 100%;
+}
+
+.tab-search-input::placeholder {
+  color: #666;
+}
+
+/* Tabs container */
+.tabs-container {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 1;
+  overflow-x: auto;
+  padding: 2px 0;
+}
+
+.tabs-container::-webkit-scrollbar {
+  height: 4px;
+}
+
+.tabs-container::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.tabs-container::-webkit-scrollbar-thumb {
+  background: #444;
+  border-radius: 2px;
+}
+
+/* Tree tab button */
+.tree-tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: #2a2a3e;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  color: #aaa;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+  max-width: 180px;
+}
+
+.tree-tab:hover {
+  background: #3a3a4e;
+  color: #fff;
+}
+
+.tree-tab.active {
+  background: #4a4a6e;
+  border-color: #6366f1;
+  color: #fff;
+}
+
+.tree-tab .tab-icon {
+  flex-shrink: 0;
+  color: #4CAF50;
+}
+
+.tree-tab.subtree-tab .tab-icon {
+  color: #00BCD4;
+}
+
+.tree-tab .tab-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tree-tab .dirty-indicator {
+  color: #fbbf24;
+  flex-shrink: 0;
+  margin-left: 2px;
+}
+
+/* No results */
+.no-results {
+  color: #666;
+  font-size: 12px;
+  font-style: italic;
+  padding: 4px 8px;
+}
+
+/* File info */
+.file-info {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+  padding-left: 12px;
+  border-left: 1px solid #333;
+}
+
+.file-name {
+  color: #888;
+  font-size: 11px;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Container for tab bar and ports panel */
+.subtree-tab-bar-container {
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+}
+
+/* Subtree ports panel */
+.subtree-ports-panel {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 4px 12px;
+  background: #252535;
+  border-bottom: 1px solid #333;
+  font-size: 11px;
+  flex-wrap: wrap;
+}
+
+.subtree-ports-panel .ports-label {
+  color: #888;
+  font-weight: 500;
+}
+
+.subtree-ports-panel .port-group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.subtree-ports-panel .port-icon {
+  flex-shrink: 0;
+}
+
+.subtree-ports-panel .port-icon.input {
+  color: #4CAF50;
+}
+
+.subtree-ports-panel .port-icon.output {
+  color: #FF9800;
+}
+
+.subtree-ports-panel .port-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-size: 10px;
+  font-weight: 500;
+}
+
+.subtree-ports-panel .port-tag.input {
+  background: rgba(76, 175, 80, 0.2);
+  color: #81C784;
+  border: 1px solid rgba(76, 175, 80, 0.3);
+}
+
+.subtree-ports-panel .port-tag.output {
+  background: rgba(255, 152, 0, 0.2);
+  color: #FFB74D;
+  border: 1px solid rgba(255, 152, 0, 0.3);
+}
+
+.subtree-ports-panel .required-indicator {
+  color: #f44336;
+  font-weight: bold;
+}
