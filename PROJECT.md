@@ -370,9 +370,6 @@ const onConnect = useCallback((params: Connection) => {
 - `isTimeTravelRef` - Prevents recording during undo/redo
 - `isDraggingRef` - Prevents recording during drag
 
-**Keyboard Shortcuts:**
-- Undo: `Ctrl+Z` / `Cmd+Z`
-- Redo: `Ctrl+Shift+Z` / `Cmd+Shift+Z`
 
 ### Import/Export hooks
 
@@ -475,13 +472,6 @@ console.log('Imported edges:', edges);
 - All operations are client-side only
 - File downloads use Blob URLs (cleaned up after download)
 
-## Browser compatibility
-
-- **Requires**: Modern browsers with ES6+ support
-- **Tested**: Chrome, Firefox, Safari, Edge
-- **File API**: Uses File API for import (widely supported)
-- **File System Access API**: Modern browsers (Chrome 86+, Edge 86+) support save dialogs
-
 ## Release Process
 
 BTstudio uses GitHub Actions for automated builds and releases. The CI pipeline builds platform-specific installers and supports auto-updates through electron-updater.
@@ -498,7 +488,7 @@ BTstudio uses GitHub Actions for automated builds and releases. The CI pipeline 
    ```bash
    git push && git push --tags
    ```
-   Pushing a tag starting with `v` (e.g., `v0.1.1`) triggers the GitHub Actions workflow.
+   Pushing a tag starting with `v` (e.g., `v1.1.1`) triggers the GitHub Actions workflow.
 
 3. **Monitor the build**
    - Go to the [Actions tab](https://github.com/AdityaGupta0/BTstudio/actions) on GitHub
@@ -524,13 +514,13 @@ BTstudio uses GitHub Actions for automated builds and releases. The CI pipeline 
 
 ### Platform-Specific Notes
 
-**macOS (Apple Silicon)**
-- Builds a `.dmg` installer for arm64 architecture
+**macOS**
+- Builds a `.dmg` universal installer
 - Not code-signed (will show "unidentified developer" warning)
 - Users must right-click → Open on first launch
 
-**Linux (Ubuntu x86)**
-- Builds an `.AppImage` for x64 architecture
+**Linux (Ubuntu 22.04)**
+- Builds an `.AppImage` for x86-64 and ARM64 architecture
 - Users may need to make it executable: `chmod +x BTstudio-*.AppImage`
 - No additional dependencies required
 

@@ -114,20 +114,8 @@ Node names are properly exported as the `name` attribute in BehaviorTree.cpp XML
 </Sequence>
 ```
 
-This is fully compatible with BehaviorTree.cpp and Groot2.
+This is fully compatible with BehaviorTree.cpp v4.
 
-### Best practices for node naming
-
-✅ **Good Use Cases:**
-- Distinguish multiple instances of the same node type
-- Document the purpose of specific nodes
-- Make complex trees more readable
-- Match naming conventions from Groot2 projects
-
-❌ **Avoid:**
-- Naming every single node (clutters the display)
-- Using very long names (truncates in display)
-- Duplicating information already in node type
 
 ### Examples
 
@@ -352,11 +340,4 @@ if ('showSaveFilePicker' in window) {
 }
 ```
 
-### Browser compatibility matrix
 
-| Browser | Save Dialog | Default Filename | Notes |
-|---------|-------------|------------------|-------|
-| Chrome 86+ | ✅ Yes | ✅ Yes | Full support |
-| Edge 86+ | ✅ Yes | ✅ Yes | Full support |
-| Firefox | ❌ No | ✅ Yes | Uses download |
-| Safari | ❌ No | ✅ Yes | Uses download |

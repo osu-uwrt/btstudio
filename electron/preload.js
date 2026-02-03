@@ -2,7 +2,7 @@ const { contextBridge, ipcRenderer } = require('electron');
 
 // Expose protected methods to the renderer process
 contextBridge.exposeInMainWorld('electronAPI', {
-  // ============ Dialog operations ============
+  // Dialog operations
   openFolder: () => ipcRenderer.invoke('dialog:openFolder'),
   openFile: (options) => ipcRenderer.invoke('dialog:openFile', options),
   saveFile: (options) => ipcRenderer.invoke('dialog:saveFile', options),
@@ -10,17 +10,17 @@ contextBridge.exposeInMainWorld('electronAPI', {
   showConfirm: (options) => ipcRenderer.invoke('dialog:showConfirm', options),
   showPrompt: (options) => ipcRenderer.invoke('dialog:showPrompt', options),
 
-  // ============ File system operations ============
+  // File system operations
   listXmlFiles: (dirPath) => ipcRenderer.invoke('fs:listXmlFiles', dirPath),
   readFile: (filePath) => ipcRenderer.invoke('fs:readFile', filePath),
   writeFile: (filePath, content) => ipcRenderer.invoke('fs:writeFile', filePath, content),
   fileExists: (filePath) => ipcRenderer.invoke('fs:fileExists', filePath),
   getModifiedTime: (filePath) => ipcRenderer.invoke('fs:getModifiedTime', filePath),
 
-  // ============ Window operations ============
+  // Window operations 
   setTitle: (title) => ipcRenderer.send('window:setTitle', title),
 
-  // ============ Menu event listeners ============
+  // Menu event listeners 
   onMenuNewTree: (callback) => {
     ipcRenderer.on('menu:newTree', () => callback());
     return () => ipcRenderer.removeAllListeners('menu:newTree');
