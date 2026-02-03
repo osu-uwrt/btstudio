@@ -45,12 +45,6 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: List dist contents (Linux)
-        if: matrix.os == 'ubuntu-22.04'
-        run: |
-          echo "Dist listing for Linux runner"
-          if [ -d dist ]; then ls -la dist || true; else echo "dist/ not found"; fi
-
       - name: Upload artifacts (macOS)
         if: matrix.os == 'macos-latest'
         uses: actions/upload-artifact@v4
@@ -63,7 +57,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: linux-appimage
-          path: dist/**
+          path: dist/*.AppImage
 
   publish:
     needs: release
