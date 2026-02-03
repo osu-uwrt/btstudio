@@ -1,6 +1,6 @@
 {
   "name": "btstudio",
-  "version": "0.9.5-beta",
+  "version": "1.0.0",
   "private": true,
   "main": "electron/main.js",
   "homepage": "./",
@@ -61,7 +61,7 @@
         {
           "target": "dmg",
           "arch": [
-            "arm64"
+            "universal"
           ]
         }
       ],
