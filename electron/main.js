@@ -1,5 +1,4 @@
 const { app, BrowserWindow, ipcMain, dialog, Menu } = require('electron');
-const { autoUpdater } = require('electron-updater');
 const path = require('path');
 const fs = require('fs');
 
@@ -9,9 +8,6 @@ let mainWindow = null;
 // Determine if we're in development mode
 const isDev = !app.isPackaged;
 
-// Configure auto-updater
-autoUpdater.autoDownload = false;
-autoUpdater.autoInstallOnAppQuit = true;
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -123,15 +119,11 @@ function createWindow() {
         {
           label: 'Check for Updates...',
           click: () => {
-            if (!isDev) {
-              checkForUpdates();
-            } else {
-              dialog.showMessageBox(mainWindow, {
-                type: 'info',
-                title: 'Updates',
-                message: 'Auto-update is disabled in development mode.'
-              });
-            }
+            dialog.showMessageBox(mainWindow, {
+              type: 'info',
+              title: 'Updates',
+              message: 'Auto-update has been removed from this build.'
+            });
           }
         },
         { type: 'separator' },
@@ -141,7 +133,7 @@ function createWindow() {
             dialog.showMessageBox(mainWindow, {
               type: 'info',
               title: 'About BTstudio',
-              message: 'BTstudio v0.1.0',
+              message: 'BTstudio',
               detail: 'A visual editor for BehaviorTree.cpp compatible XML trees.'
             });
           }
@@ -176,12 +168,7 @@ function createWindow() {
 app.whenReady().then(() => {
   createWindow();
   
-  if (!isDev) {
-    // Check for updates 5 seconds after launch
-    setTimeout(() => {
-      autoUpdater.checkForUpdates();
-    }, 5000);
-  }
+  // Auto-update disabled; no automatic update checks are performed
 });
 
 app.on('window-all-closed', () => {
@@ -382,66 +369,4 @@ ipcMain.on('window:setTitle', (event, title) => {
   }
 });
 
-// Auto-updater functions
-function checkForUpdates() {
-  autoUpdater.checkForUpdates();
-}
-
-autoUpdater.on('checking-for-update', () => {
-  if (mainWindow) {
-    mainWindow.webContents.send('update:checking');
-  }
-});
-
-autoUpdater.on('update-available', (info) => {
-  dialog.showMessageBox(mainWindow, {
-    type: 'info',
-    title: 'Update Available',
-    message: `A new version (${info.version}) is available!`,
-    detail: 'Would you like to download it now?',
-    buttons: ['Download', 'Later']
-  }).then((result) => {
-    if (result.response === 0) {
-      autoUpdater.downloadUpdate();
-    }
-  });
-});
-
-autoUpdater.on('update-not-available', () => {
-  dialog.showMessageBox(mainWindow, {
-    type: 'info',
-    title: 'No Updates',
-    message: 'You are running the latest version.'
-  });
-});
-
-autoUpdater.on('download-progress', (progressObj) => {
-  let logMessage = `Download speed: ${progressObj.bytesPerSecond} - Downloaded ${progressObj.percent}%`;
-  if (mainWindow) {
-    mainWindow.webContents.send('update:download-progress', progressObj);
-    mainWindow.setProgressBar(progressObj.percent / 100);
-  }
-});
-
-autoUpdater.on('update-downloaded', (info) => {
-  mainWindow.setProgressBar(-1);
-  dialog.showMessageBox(mainWindow, {
-    type: 'info',
-    title: 'Update Ready',
-    message: 'Update downloaded. The application will restart to install the update.',
-    buttons: ['Restart Now', 'Later']
-  }).then((result) => {
-    if (result.response === 0) {
-      autoUpdater.quitAndInstall();
-    }
-  });
-});
-
-autoUpdater.on('error', (err) => {
-  dialog.showMessageBox(mainWindow, {
-    type: 'error',
-    title: 'Update Error',
-    message: 'An error occurred while checking for updates.',
-    detail: err.toString()
-  });
-});
+// Auto-update handlers removed.
