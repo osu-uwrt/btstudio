@@ -61,7 +61,7 @@ jobs:
 
   publish:
     needs: release
-    runs-on: ubuntu-22.04
+    runs-on: ${{ matrix.os }}
     permissions:
       contents: write
 
