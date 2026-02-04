@@ -57,6 +57,12 @@ The renderer relies on these capabilities:
 
 These are implemented in `electron/main.js` and exposed by `electron/preload.js`.
 
+Export Tree (developer notes)
+
+- Flow: menu -> `menu:export` IPC -> `preload.onMenuExport` -> renderer `TreeEditor.handleExport`.
+- Electron behavior: `handleExport` shows a native save dialog (`saveFile` IPC) and writes the XML via `writeFile` without changing the active file.
+- Code locations: `electron/main.js` (menu), `electron/preload.js` (onMenuExport), `src/components/TreeEditor.tsx` (handleExport + menu listener), `src/hooks/useWorkspaceOps.ts` + `src/utils/xmlSerializer.ts` (`exportMultiTreeToXML` / `exportToXML`).
+
 ## Data model
 
 ### TreeData

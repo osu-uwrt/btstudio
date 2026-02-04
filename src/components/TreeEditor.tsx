@@ -527,54 +527,58 @@ const TreeEditor: React.FC<TreeEditorProps> = ({
     [setNodes]
   );
 
-  // Export tree to XML with file picker
-  const handleExport = useCallback(() => {
+  // Export tree to XML with file picker (shows save dialog in Electron and writes a copy — does NOT open the file)
+  const handleExport = useCallback(async () => {
     try {
-      // If in Electron with workspace, export multi-tree
-      if (isElectron && workspaceState.mainTree) {
-        const xml = exportMultiTreeToXML(workspaceState.mainTree, workspaceState.subtrees);
-        fallbackDownload(xml, workspaceState.activeFileName);
+      // Prefer multi-tree export when editing a workspace-backed file
+      const xml = (isElectron && workspaceState.mainTree)
+        ? exportMultiTreeToXML(workspaceState.mainTree, workspaceState.subtrees)
+        : exportToXML(nodes, edges, variables);
+
+      // Electron: show native save dialog and write the file (export = copy, do NOT change active file)
+      if (isElectron && window.electronAPI) {
+        const defaultPath = workspaceState.workspacePath
+          ? `${workspaceState.workspacePath}/${workspaceState.activeFileName}`
+          : workspaceState.activeFileName || lastImportedFile;
+
+        const filePath = await window.electronAPI.saveFile({
+          title: 'Export Tree File',
+          defaultPath,
+        });
+
+        if (!filePath) return; // user cancelled
+
+        await window.electronAPI.writeFile(filePath, xml);
         return;
       }
-      
-      const xml = exportToXML(nodes, edges, variables);
-      
-      // Check if File System Access API is available
+
+      // Web: use File System Access API when available, otherwise fall back to download
       if ('showSaveFilePicker' in window) {
-        // Modern API - allows choosing location
         const options = {
           suggestedName: lastImportedFile,
-          types: [{
-            description: 'BehaviorTree XML',
-            accept: { 'text/xml': ['.xml'] }
-          }]
+          types: [{ description: 'BehaviorTree XML', accept: { 'text/xml': ['.xml'] } }]
         };
-        
-        (window as any).showSaveFilePicker(options)
-          .then((fileHandle: any) => {
-            return fileHandle.createWritable();
-          })
-          .then((writable: any) => {
-            writable.write(xml);
-            return writable.close();
-          })
-          .then(() => {
-            // Success - file saved
-          })
-          .catch((err: Error) => {
-            // User cancelled or error - fall back to download
-            if (err.name !== 'AbortError') {
-              console.error('Save failed:', err);
-              fallbackDownload(xml, lastImportedFile);
-            }
-          });
-      } else {
-        // Fallback - traditional download
-        fallbackDownload(xml, lastImportedFile);
+
+        const handle = await (window as any).showSaveFilePicker(options);
+        const writable = await handle.createWritable();
+        await writable.write(xml);
+        await writable.close();
+        return;
       }
+
+      // Fallback: trigger browser download
+      fallbackDownload(xml, lastImportedFile);
     } catch (error) {
       console.error('Export failed:', error);
-      alert('Failed to export tree: ' + (error instanceof Error ? error.message : String(error)));
+      if (isElectron && window.electronAPI) {
+        await window.electronAPI.showWarning({
+          title: 'Export Failed',
+          message: 'Failed to export tree',
+          detail: error instanceof Error ? error.message : String(error),
+        });
+      } else {
+        alert('Failed to export tree: ' + (error instanceof Error ? error.message : String(error)));
+      }
     }
   }, [nodes, edges, variables, lastImportedFile, isElectron, workspaceState]);
 
@@ -583,7 +587,7 @@ const TreeEditor: React.FC<TreeEditorProps> = ({
     if (isElectron) {
       await saveWorkspace();
     } else {
-      handleExport();
+      await handleExport();
     }
   }, [isElectron, saveWorkspace, handleExport]);
 
@@ -599,16 +603,26 @@ const TreeEditor: React.FC<TreeEditorProps> = ({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [handleSave]);
 
-  // Listen for menu save event from Electron
+  // Listen for menu save/export events from Electron
   useEffect(() => {
     if (!isElectron || !window.electronAPI) return;
-    
-    const cleanup = window.electronAPI.onMenuSave(() => {
-      handleSave();
-    });
-    
-    return cleanup;
-  }, [isElectron, handleSave]);
+
+    const cleanups: (() => void)[] = [];
+
+    cleanups.push(
+      window.electronAPI.onMenuSave(() => {
+        handleSave();
+      })
+    );
+
+    cleanups.push(
+      window.electronAPI.onMenuExport(() => {
+        handleExport();
+      })
+    );
+
+    return () => cleanups.forEach(c => c());
+  }, [isElectron, handleSave, handleExport]);
 
   // Fallback download method
   const fallbackDownload = (xml: string, filename: string) => {

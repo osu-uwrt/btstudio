@@ -76,6 +76,11 @@ The web UI opens at `http://localhost:3000` and can export XML via downloads, bu
 - Use File → Save or the standard shortcut (Cmd+S / Ctrl+S).
 - Saving writes the current file, updates the subtree library, and updates other files that reference the same subtrees.
 
+### Export Tree
+- Use File → Export Tree… or the shortcut (Cmd/Ctrl+E) to save a copy of the current working tree.
+- The app shows a native Save dialog (choose location); the exported file is written as a copy and the active file in the editor is not opened or changed.
+- In the workspace the export includes the main tree plus embedded subtrees; in the web UI it uses a download or the File System Access API.
+
 ### Use variables
 1. Right sidebar → Add variable (e.g., "counter", number, 0)
 2. Drag "Set Variable" to canvas
