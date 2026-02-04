@@ -1,6 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
 import './WelcomeModal.css';
-import { useWorkspace } from '../store/workspaceStore';
 import { useWorkspaceOps } from '../hooks/useWorkspaceOps';
 
 /**
