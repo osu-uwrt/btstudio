@@ -51,7 +51,7 @@ jobs:
             -w /project \
             -e GH_TOKEN="${GH_TOKEN}" \
             electronuserland/builder:latest \
-            bash -lc "npm ci && npm run build && npx electron-builder --linux AppImage,deb --${{ matrix.arch }} --publish never"
+            bash -lc "npm ci && npm run build && npx electron-builder --linux AppImage deb --${{ matrix.arch }} --publish never"
 
       - name: Upload artifacts (macOS)
         if: matrix.os == 'macos-latest'
