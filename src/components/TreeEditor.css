@@ -23,14 +23,16 @@
 }
 
 .react-flow__controls {
-  background-color: #2d2d2d;
+  background-color: #2b2b2b;
   border: 1px solid #444;
 }
 
 .react-flow__controls-button {
-  background-color: #2d2d2d;
+  background-color: #232323;
   border-bottom: 1px solid #444;
   color: #ffffff;
+  stroke: #757575;
+  fill: #757575;
 }
 
 .react-flow__controls-button:hover {

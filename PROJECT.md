@@ -501,16 +501,6 @@ BTstudio uses GitHub Actions for automated builds and releases. The CI pipeline 
    - Edit the release notes as needed (auto-generated notes are provided)
    - Click "Publish release" to make it public
 
-### Auto-Update Behavior
-
-- **Production builds** automatically check for updates 5 seconds after launch
-- Users can manually check via **Help → Check for Updates**
-- When an update is available:
-  - User is prompted to download
-  - Download progress is shown
-  - After download, user can restart to install or defer
-- Updates are served from GitHub Releases
-- **Note**: Unsigned packages will show security warnings on first install
 
 ### Platform-Specific Notes
 
@@ -519,8 +509,8 @@ BTstudio uses GitHub Actions for automated builds and releases. The CI pipeline 
 - Not code-signed (will show "unidentified developer" warning)
 - Users must right-click → Open on first launch
 
-**Linux (Ubuntu 22.04)**
-- Builds an `.AppImage` for x86-64 and ARM64 architecture
+**Linux**
+- Builds an `.AppImage` for x86-64 architecture
 - Users may need to make it executable: `chmod +x BTstudio-*.AppImage`
 - No additional dependencies required
 
