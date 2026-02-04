@@ -16,6 +16,8 @@ jobs:
             arch: arm64
           - os: ubuntu-22.04
             arch: x64
+          - os: ubuntu-22.04
+            arch: arm64
 
     steps:
       - name: Checkout code
@@ -28,7 +30,7 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
 
       - name: Build React app
         run: npm run build
@@ -41,9 +43,15 @@ jobs:
 
       - name: Build Electron app (Linux)
         if: matrix.os == 'ubuntu-22.04'
-        run: npx electron-builder --linux --x64 --publish never
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          docker run --rm \
+            -v "${GITHUB_WORKSPACE}:/project" \
+            -w /project \
+            -e GH_TOKEN="${GH_TOKEN}" \
+            electronuserland/builder:latest \
+            bash -lc "npm ci && npm run build && npx electron-builder --linux AppImage,deb --${{ matrix.arch }} --publish never"
 
       - name: Upload artifacts (macOS)
         if: matrix.os == 'macos-latest'
@@ -56,8 +64,8 @@ jobs:
         if: matrix.os == 'ubuntu-22.04'
         uses: actions/upload-artifact@v4
         with:
-          name: linux-appimage
-          path: dist/*.AppImage
+          name: linux-${{ matrix.arch }}
+          path: dist/*
 
   publish:
     needs: release
@@ -75,10 +83,16 @@ jobs:
           name: macos-dmg
           path: dist/
 
-      - name: Download Linux artifact
+      - name: Download Linux x64 artifact
         uses: actions/download-artifact@v4
         with:
-          name: linux-appimage
+          name: linux-x64
+          path: dist/
+
+      - name: Download Linux arm64 artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: linux-arm64
           path: dist/
 
       - name: Create Release
@@ -87,6 +101,7 @@ jobs:
           files: |
             dist/*.dmg
             dist/*.AppImage
+            dist/*.deb
           draft: true
           generate_release_notes: true
         env:
