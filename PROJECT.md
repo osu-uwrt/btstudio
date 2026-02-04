@@ -113,6 +113,17 @@ Node rendering and editing uses this contract in:
 - `saveWorkspace()` saves the active file, updates the library, and updates other files in the workspace that reference the same subtrees
 - `createNewTree()` creates a new file with the main tree ID set to `main_tree_to_execute`
 
+#### New (developer) notes — welcome modal & workspace open flow
+
+- Summary: the app now shows a blocking **Welcome** modal when there is no active file; it blurs the editor and requires a successful Create/Open to dismiss. The workspace open flow was hardened to avoid a folder+file dialog race.
+- API change (backwards-compatible): `openWorkspace(openFileAfter?: boolean)` — when `openFileAfter` is true the hook will immediately run the tree-file picker from the selected folder (avoids two separate dialog calls and race conditions). Default remains `false`.
+- Files to inspect/modify:
+  - UI: `src/components/WelcomeModal.tsx`, `src/components/WelcomeModal.css`, `src/App.tsx`
+  - Workflow: `src/hooks/useWorkspaceOps.ts` (new `openFileAfter` behavior), `src/components/WorkspaceToolbar.tsx` (menu caller)
+- Callers updated: `WorkspaceToolbar` and the Welcome modal now use `openWorkspace(true)` to run folder+file selection as a single sequence.
+- Testing notes: verify (1) folder → file picker reliably appears and loads the selected XML, (2) cancelling the file picker keeps the modal open, and (3) reloading with no active file re-shows the modal. Add an e2e that simulates folder + file selection to prevent regressions.
+
+
 ### Save pipeline
 
 The save operation performs three steps:
