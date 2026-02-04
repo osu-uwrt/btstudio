@@ -20,11 +20,8 @@ export const WorkspaceToolbar: React.FC = () => {
     // Open workspace handler
     cleanups.push(
       window.electronAPI.onMenuOpenWorkspace(async () => {
-        const success = await openWorkspace();
-        if (success) {
-          // After opening workspace, prompt to open a tree file
-          await openTreeFile();
-        }
+        // ask openWorkspace to immediately run the file picker after folder selection
+        await openWorkspace(true);
       })
     );
     

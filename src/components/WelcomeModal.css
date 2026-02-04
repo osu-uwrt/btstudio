@@ -1,0 +1,96 @@
+:root{
+  --card-bg: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.02));
+  --panel-border: rgba(255,255,255,0.06);
+  --muted: rgba(255,255,255,0.65);
+  --accent: #0078d4;
+}
+
+.bt-welcome-modal {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1200;
+  /* subtle dim behind the card; the editor itself will be blurred by parent */
+  background: linear-gradient(rgba(6,6,6,0.55), rgba(6,6,6,0.55));
+}
+
+.bt-welcome-card {
+  width: 420px;
+  max-width: calc(100% - 48px);
+  background: var(--card-bg);
+  border: 1px solid var(--panel-border);
+  border-radius: 12px;
+  padding: 28px 28px;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.6), inset 0 1px rgba(255,255,255,0.02);
+  color: #fff;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  align-items: center;
+}
+
+.bt-welcome-title {
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.3px;
+  color: #ffffff;
+}
+
+.bt-welcome-subtitle {
+  color: var(--muted);
+  font-size: 12px;
+  margin-top: -6px;
+}
+
+.bt-welcome-actions {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: stretch;
+  margin-top: 6px;
+}
+
+.bt-welcome-button {
+  padding: 12px 14px;
+  border-radius: 8px;
+  border: 1px solid rgba(255,255,255,0.06);
+  background: rgba(255,255,255,0.02);
+  color: #fff;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: center;
+  transition: transform .08s ease, box-shadow .08s ease, background-color .08s ease;
+}
+
+.bt-welcome-button:focus {
+  outline: none;
+  box-shadow: 0 0 0 4px rgba(0,120,212,0.12);
+}
+
+.bt-welcome-button:hover {
+  transform: translateY(-1px);
+}
+
+.bt-btn-primary {
+  background: linear-gradient(180deg, #0a84ff, #006fd6);
+  border: none;
+  box-shadow: 0 6px 18px rgba(6,110,201,0.28);
+}
+
+.bt-welcome-note {
+  margin-top: 4px;
+  color: var(--muted);
+  text-align: center;
+}
+
+/* Background blur applied to application when modal is active */
+.modal-open {
+  filter: blur(6px);
+  -webkit-filter: blur(6px);
+  pointer-events: none; /* ensure modal is the only interactive element */
+  user-select: none;
+  touch-action: none;
+}

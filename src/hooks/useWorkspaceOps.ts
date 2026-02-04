@@ -21,7 +21,9 @@ import {
 import { SubTreePort } from '../types';
 
 interface UseWorkspaceOpsResult {
-  openWorkspace: () => Promise<boolean>;
+  // If `openFileAfter` is true, the implementation will immediately prompt to open a tree file
+  // from the newly-selected workspace folder (avoids UI/dialog races when chaining dialogs).
+  openWorkspace: (openFileAfter?: boolean) => Promise<boolean>;
   openTreeFile: (filePath?: string) => Promise<boolean>;
   saveWorkspace: () => Promise<boolean>;
   createNewTree: () => Promise<void>;
@@ -36,31 +38,141 @@ export function useWorkspaceOps(): UseWorkspaceOpsResult {
   const isElectron = typeof window !== 'undefined' && window.isElectron === true;
   
   /**
-   * Open a workspace folder and load the subtree library
+   * Open a specific tree file
    */
-  const openWorkspace = useCallback(async (): Promise<boolean> => {
+  const openTreeFile = useCallback(async (filePath?: string): Promise<boolean> => {
     if (!isElectron || !window.electronAPI) {
       console.error('Electron API not available');
       return false;
     }
-    
+
+    try {
+      let targetPath = filePath;
+
+      if (!targetPath) {
+        // Show file picker (defaultPath may be the workspace folder)
+        targetPath = await window.electronAPI.openFile({
+          title: 'Open Tree File',
+          defaultPath: state.workspacePath || undefined,
+        }) || undefined;
+      }
+
+      if (!targetPath) return false;
+
+      // Read the file
+      const fileResult = await window.electronAPI.readFile(targetPath);
+      if (!fileResult) {
+        await window.electronAPI.showWarning({
+          title: 'Error',
+          message: 'Could not read file',
+          detail: `Failed to read: ${targetPath}`,
+        });
+        return false;
+      }
+
+      // Parse the file
+      const parseResult = importMultiTreeFromXML(fileResult.content);
+
+      // Check for discrepancies with library subtrees
+      const discrepancies = await checkLibraryDiscrepancies(
+        parseResult.subtrees,
+        state.librarySubtrees
+      );
+
+      if (discrepancies.length > 0) {
+        const shouldContinue = await window.electronAPI.showConfirm({
+          title: 'Subtree Discrepancy Detected',
+          message: 'Some subtrees in this file differ from the library versions.',
+          detail: `Affected subtrees: ${discrepancies.join(', ')}\n\n` +
+            'The library version will be used as the source of truth. ' +
+            'If you save this file, the library versions will overwrite these subtrees.\n\n' +
+            'Continue loading?',
+          buttons: ['Continue', 'Cancel'],
+        });
+
+        if (!shouldContinue) {
+          return false;
+        }
+
+        // Replace file subtrees with library versions
+        discrepancies.forEach(subtreeId => {
+          const libraryVersion = state.librarySubtrees.get(subtreeId);
+          if (libraryVersion) {
+            parseResult.subtrees.set(subtreeId, {
+              ...libraryVersion,
+              nodes: JSON.parse(JSON.stringify(libraryVersion.nodes)),
+              edges: JSON.parse(JSON.stringify(libraryVersion.edges)),
+              variables: [...libraryVersion.variables],
+              description: libraryVersion.description,
+              ports: libraryVersion.ports ? [...libraryVersion.ports] : undefined,
+            });
+          }
+        });
+      }
+
+      // Extract filename
+      const fileName = targetPath.split('/').pop() || 'Untitled';
+
+      dispatch({
+        type: 'SET_ACTIVE_FILE',
+        path: targetPath,
+        name: fileName,
+        mainTree: parseResult.mainTree,
+        subtrees: parseResult.subtrees,
+      });
+
+      // Track file modification time
+      dispatch({
+        type: 'UPDATE_FILE_MODIFIED_TIME',
+        filePath: targetPath,
+        modifiedTime: fileResult.modifiedTime,
+      });
+
+      // Update window title
+      const workspaceName = state.workspacePath?.split('/').pop() || '';
+      window.electronAPI.setTitle(`BTstudio - ${workspaceName} - ${fileName}`);
+
+      return true;
+    } catch (error) {
+      console.error('Error opening tree file:', error);
+      if (window.electronAPI) {
+        await window.electronAPI.showWarning({
+          title: 'Error',
+          message: 'Failed to parse tree file',
+          detail: error instanceof Error ? error.message : String(error),
+        });
+      }
+      return false;
+    }
+  }, [isElectron, state.workspacePath, state.librarySubtrees, dispatch]);
+
+  /**
+   * Open a workspace folder and load the subtree library
+   * If `openFileAfter` is true, prompt to open a tree file from the selected folder
+   */
+  const openWorkspace = useCallback(async (openFileAfter = false): Promise<boolean> => {
+    if (!isElectron || !window.electronAPI) {
+      console.error('Electron API not available');
+      return false;
+    }
+
     try {
       const folderPath = await window.electronAPI.openFolder();
       if (!folderPath) return false;
-      
+
       // List XML files in the workspace
       const files = await window.electronAPI.listXmlFiles(folderPath);
-      
+
       dispatch({
         type: 'SET_WORKSPACE_PATH',
         path: folderPath,
         files,
       });
-      
+
       // Load subtree library if it exists
       const libraryPath = `${folderPath}/${SUBTREE_LIBRARY_FILENAME}`;
       const libraryResult = await window.electronAPI.readFile(libraryPath);
-      
+
       if (libraryResult) {
         const librarySubtrees = importSubtreeLibraryFromXML(libraryResult.content);
         dispatch({
@@ -78,126 +190,25 @@ export function useWorkspaceOps(): UseWorkspaceOpsResult {
           modifiedTime: null,
         });
       }
-      
+
       // Update window title
       const folderName = folderPath.split('/').pop() || folderPath;
       window.electronAPI.setTitle(`BTstudio - ${folderName}`);
-      
+
+      // If requested, immediately prompt to open a tree file from the selected folder.
+      if (openFileAfter) {
+        // Use openTreeFile with an explicit default to avoid relying on state updates
+        const picked = await window.electronAPI.openFile({ title: 'Open Tree File', defaultPath: folderPath }) || undefined;
+        if (!picked) return false;
+        return await openTreeFile(picked);
+      }
+
       return true;
     } catch (error) {
       console.error('Error opening workspace:', error);
       return false;
     }
-  }, [isElectron, dispatch]);
-  
-  /**
-   * Open a specific tree file
-   */
-  const openTreeFile = useCallback(async (filePath?: string): Promise<boolean> => {
-    if (!isElectron || !window.electronAPI) {
-      console.error('Electron API not available');
-      return false;
-    }
-    
-    try {
-      let targetPath = filePath;
-      
-      if (!targetPath) {
-        // Show file picker
-        targetPath = await window.electronAPI.openFile({
-          title: 'Open Tree File',
-          defaultPath: state.workspacePath || undefined,
-        }) || undefined;
-      }
-      
-      if (!targetPath) return false;
-      
-      // Read the file
-      const fileResult = await window.electronAPI.readFile(targetPath);
-      if (!fileResult) {
-        await window.electronAPI.showWarning({
-          title: 'Error',
-          message: 'Could not read file',
-          detail: `Failed to read: ${targetPath}`,
-        });
-        return false;
-      }
-      
-      // Parse the file
-      const parseResult = importMultiTreeFromXML(fileResult.content);
-      
-      // Check for discrepancies with library subtrees
-      const discrepancies = await checkLibraryDiscrepancies(
-        parseResult.subtrees,
-        state.librarySubtrees
-      );
-      
-      if (discrepancies.length > 0) {
-        const shouldContinue = await window.electronAPI.showConfirm({
-          title: 'Subtree Discrepancy Detected',
-          message: 'Some subtrees in this file differ from the library versions.',
-          detail: `Affected subtrees: ${discrepancies.join(', ')}\n\n` +
-            'The library version will be used as the source of truth. ' +
-            'If you save this file, the library versions will overwrite these subtrees.\n\n' +
-            'Continue loading?',
-          buttons: ['Continue', 'Cancel'],
-        });
-        
-        if (!shouldContinue) {
-          return false;
-        }
-        
-        // Replace file subtrees with library versions
-        discrepancies.forEach(subtreeId => {
-          const libraryVersion = state.librarySubtrees.get(subtreeId);
-          if (libraryVersion) {
-            parseResult.subtrees.set(subtreeId, {
-              ...libraryVersion,
-              nodes: JSON.parse(JSON.stringify(libraryVersion.nodes)),
-              edges: JSON.parse(JSON.stringify(libraryVersion.edges)),
-              variables: [...libraryVersion.variables],
-              description: libraryVersion.description,
-              ports: libraryVersion.ports ? [...libraryVersion.ports] : undefined,
-            });
-          }
-        });
-      }
-      
-      // Extract filename
-      const fileName = targetPath.split('/').pop() || 'Untitled';
-      
-      dispatch({
-        type: 'SET_ACTIVE_FILE',
-        path: targetPath,
-        name: fileName,
-        mainTree: parseResult.mainTree,
-        subtrees: parseResult.subtrees,
-      });
-      
-      // Track file modification time
-      dispatch({
-        type: 'UPDATE_FILE_MODIFIED_TIME',
-        filePath: targetPath,
-        modifiedTime: fileResult.modifiedTime,
-      });
-      
-      // Update window title
-      const workspaceName = state.workspacePath?.split('/').pop() || '';
-      window.electronAPI.setTitle(`BTstudio - ${workspaceName} - ${fileName}`);
-      
-      return true;
-    } catch (error) {
-      console.error('Error opening tree file:', error);
-      if (window.electronAPI) {
-        await window.electronAPI.showWarning({
-          title: 'Error',
-          message: 'Failed to parse tree file',
-          detail: error instanceof Error ? error.message : String(error),
-        });
-      }
-      return false;
-    }
-  }, [isElectron, state.workspacePath, state.librarySubtrees, dispatch]);
+  }, [isElectron, dispatch, openTreeFile]);
   
   /**
    * Save the workspace - updates current file, library, and all affected workspace files

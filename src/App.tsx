@@ -4,7 +4,8 @@ import TreeEditor from './components/TreeEditor';
 import VariableEditor from './components/VariableEditor';
 import SubTreeTabBar from './components/SubTreeTabBar';
 import WorkspaceToolbar from './components/WorkspaceToolbar';
-import { WorkspaceProvider } from './store/workspaceStore';
+import WelcomeModal from './components/WelcomeModal';
+import { WorkspaceProvider, useWorkspace } from './store/workspaceStore';
 import { Variable, BTNodeDefinition } from './types';
 import './App.css';
 
@@ -102,13 +103,18 @@ function AppContent() {
   }, []);
 
   const isElectron = typeof window !== 'undefined' && window.isElectron === true;
+  const { state: workspaceState } = useWorkspace();
+  const welcomeOpen = !workspaceState.activeFilePath && !workspaceState.mainTree;
 
   return (
     <div className="app">
       {/* Invisible component that handles Electron menu events */}
       {isElectron && <WorkspaceToolbar />}
-      
-      <div className="app-content">
+
+      {/* Blocking welcome modal shown when there is no active file */}
+      {welcomeOpen && <WelcomeModal />}
+
+      <div className={`app-content ${welcomeOpen ? 'modal-open' : ''}`}>
         <NodePalette onNodeSelect={handleNodeSelect} />
         <div className="main-editor-area">
           {/* SubTreeTabBar only shows in Electron mode */}
