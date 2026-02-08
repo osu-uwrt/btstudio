@@ -22,8 +22,13 @@ The library is the ground truth for shared subtrees. When you save, the current 
 
 ## System requirements
 
+### Development
 - Node.js 22+ recommended
 - npm (ships with Node.js)
+
+### Application
+- MacOS 14+ or Linux
+- ARM64 or AMD64
 
 ## Getting started
 
@@ -43,13 +48,6 @@ This starts the React app and the Electron shell together. The app will open aut
 ```bash
 npm run build
 ```
-
-### Optional: run the web UI only
-```bash
-npm start
-```
-
-The web UI opens at `http://localhost:3000` and can export XML via downloads, but workspace file operations require the Electron shell.
 
 ## Basic usage
 
@@ -104,9 +102,8 @@ The web UI opens at `http://localhost:3000` and can export XML via downloads, bu
 - Click nodes to select and edit
 
 ### VariableEditor (Right Sidebar)
-- Toggle Global/Local scope
 - Add new variables with type
-- Edit values inline
+- Edit inital values inline
 - Delete unwanted variables
 
 ### NodePropertiesPanel (Floating)
