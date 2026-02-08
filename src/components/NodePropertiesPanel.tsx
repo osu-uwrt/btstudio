@@ -64,10 +64,6 @@ const NodePropertiesPanel: React.FC<NodePropertiesPanelProps> = ({
             <span className="info-label">Category:</span>
             <span className="info-value">{node.data?.category || 'Unknown'}</span>
           </div>
-          <div className="info-row">
-            <span className="info-label">ID:</span>
-            <span className="info-value mono">{node.id}</span>
-          </div>
         </div>
 
         <div className="name-section">

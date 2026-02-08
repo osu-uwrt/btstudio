@@ -140,6 +140,11 @@
 .node-name {
   font-weight: 600;
   font-size: 14px;
+  flex: 1;
+  min-width: 0; /* allow flex children to shrink and enable ellipsis */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .node-category {
@@ -208,7 +213,7 @@
 
 .library-item {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 12px;
   padding: 12px;
   background: #2d2d2d;
@@ -244,19 +249,18 @@
 }
 
 .library-item-name {
-  display: block;
+  /* display: block; */
   font-weight: 600;
   font-size: 14px;
   margin-bottom: 2px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.library-item-stats {
+  display: flex;
   display: block;
-  font-size: 11px;
-  color: #888;
+  font-weight: 600;
+  font-size: 14px;
+  margin-bottom: 6px;
+  white-space: normal;
+  overflow: visible;
+  word-break: break-word;
 }
 
 .in-file-badge {
@@ -341,9 +345,8 @@
   font-size: 11px;
   color: #aaa;
   margin-top: 2px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  display: flex;
+  flex-wrap: wrap;
 }
 
 /* New Subtree modal */

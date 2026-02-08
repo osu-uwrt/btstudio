@@ -545,7 +545,7 @@ const NodePalette: React.FC<NodePaletteProps> = ({ onNodeSelect }) => {
                             <div className="library-item-ports">
                               {inputPorts.map((port, i) => (
                                 <span key={`in-${i}`} className="port-tag input" title={`Input: ${port.name} (${port.type})${port.required ? ' - required' : ''}`}>
-                                  <span className="port-dir">{'\u2192'}</span>
+                                  <ArrowDownCircle size={12}/>
                                   <span className="port-name">{port.name}</span>
                                   <span className="port-type">{port.type.charAt(0)}</span>
                                   {port.required && <span className="port-req">*</span>}
@@ -553,7 +553,7 @@ const NodePalette: React.FC<NodePaletteProps> = ({ onNodeSelect }) => {
                               ))}
                               {outputPorts.map((port, i) => (
                                 <span key={`out-${i}`} className="port-tag output" title={`Output: ${port.name} (${port.type})${port.required ? ' - required' : ''}`}>
-                                  <span className="port-dir">{'\u2190'}</span>
+                                  <ArrowUpCircle size={12} />
                                   <span className="port-name">{port.name}</span>
                                   <span className="port-type">{port.type.charAt(0)}</span>
                                   {port.required && <span className="port-req">*</span>}
