@@ -1,61 +1,71 @@
 # BehaviorTree Studio - Project Documentation
 
-This document describes the architecture, data flow, and implementation details for developers.
+This document describes the architecture, data flow, and implementation details for developers contributing to BehaviorTree Studio. The application is a visual editor for BehaviorTree.cpp v4, built with Electron, React, TypeScript, and ReactFlow.
 
 ## Repository structure
 
 ```
-BTstudio/
+btstudio/
 ├── electron/                 # Electron main process and preload
-│   ├── main.js
-│   └── preload.js
+│   ├── main.js              # IPC handlers, menus, file operations
+│   └── preload.js           # Exposes window.electronAPI to renderer
 ├── public/
-│   └── index.html
+│   └── index.html           # HTML entry point
 ├── src/
-│   ├── components/           # UI components
-│   │   ├── BTNode.tsx
-│   │   ├── NodePalette.tsx
-│   │   ├── NodePropertiesPanel.tsx
-│   │   ├── SubTreeTabBar.tsx
-│   │   ├── TreeEditor.tsx
-│   │   └── VariableEditor.tsx
+│   ├── components/          # React UI components
+│   │   ├── App.tsx          # Root app component with context setup
+│   │   ├── TreeEditor.tsx   # ReactFlow canvas and tree editing logic
+│   │   ├── BTNode.tsx       # Node component (rendered in canvas)
+│   │   ├── NodePalette.tsx  # Palette with nodes and library subtrees
+│   │   ├── NodePropertiesPanel.tsx # Node field editor panel
+│   │   ├── SubTreeTabBar.tsx       # Tabs for main tree and subtrees
+│   │   ├── VariableEditor.tsx      # Variable list and editor
+│   │   ├── WelcomeModal.tsx        # Blocking startup modal
+│   │   └── WorkspaceToolbar.tsx    # (Invisible) Electron menu listener
 │   ├── data/
-│   │   └── nodeLibrary.ts     # Built-in node definitions
+│   │   └── nodeLibrary.ts   # Built-in node definitions and colors
 │   ├── hooks/
-│   │   └── useWorkspaceOps.ts # Workspace workflows
+│   │   └── useWorkspaceOps.ts # Workspace operations (open/save/create)
 │   ├── store/
-│   │   └── workspaceStore.tsx # Workspace state and reducer
+│   │   └── workspaceStore.tsx # Redux-like state management
 │   ├── types/
-│   │   └── index.ts           # Shared types
+│   │   ├── index.ts         # Shared TypeScript types
+│   │   └── electron.d.ts    # Electron preload type definitions
 │   ├── utils/
-│   │   └── xmlSerializer.ts   # XML import/export
-│   ├── App.tsx
-│   └── index.tsx
+│   │   └── xmlSerializer.ts # BehaviorTree.cpp XML parsing and export
+│   ├── App.tsx              # Main app wrapper
+│   ├── App.css              # App-level styles
+│   ├── index.tsx            # React entry point
+│   └── index.css            # Global styles
+├── build/                   # Production build output (generated)
 ├── package.json
-└── tsconfig.json
+├── tsconfig.json
+├── PROJECT.md               # This file
+├── CUSTOMIZATION.md         # Customization and extension guide
+└── README.md                # User-facing documentation
 ```
 
 ## Runtime model
 
-The app runs as an Electron shell hosting a React UI. The renderer communicates with the main process through a limited `electronAPI` exposed by the preload script.
+The app runs as an Electron shell hosting a React UI. The renderer communicates exclusively with the main process through `window.electronAPI` (exposed by the preload script). No file system operations happen directly in the renderer.
 
 ### Electron main and preload
 
-- `electron/main.js` creates the window, defines menus, and handles file I/O via IPC.
-- `electron/preload.js` exposes `window.electronAPI` with file system and dialog methods.
-
-The renderer never touches Node APIs directly; it calls the preload methods instead.
+- **`electron/main.js`**: Creates the window, defines app menus (File, Edit, etc.), and implements IPC handlers for file I/O, dialogs, and directory scanning.
+- **`electron/preload.js`**: Exposes `window.electronAPI` with file system and dialog methods. This is the only bridge between renderer and Node.
 
 ### IPC surface
 
-The renderer relies on these capabilities:
+The renderer uses these capabilities via `window.electronAPI`:
 
-- Open/save dialogs for files and folders
-- Read/write file contents
-- File existence checks and modification times
-- Menu actions for open/save/export/new tree
+- `openFolder()`, `openFile()` - native file/folder selection dialogs
+- `readFile(path)`, `writeFile(path, content)` - file I/O
+- `showConfirm()`, `showWarning()`, `showError()` - dialog messages
+- `listFiles(path)` - directory scanning
+- `getFileStats(path)` - modification times for external change detection
+- `onMenuOpenWorkspace()`, `onMenuOpenTree()`, `onMenuNewTree()`, `onMenuExport()` - menu event listeners
 
-These are implemented in `electron/main.js` and exposed by `electron/preload.js`.
+Handlers are registered in `electron/main.js` and consumed by components (primarily `WorkspaceToolbar` and `TreeEditor`).
 
 Export Tree (developer notes)
 
@@ -66,476 +76,472 @@ Export Tree (developer notes)
 ## Data model
 
 ### TreeData
-`TreeData` is the core shape used for main trees and subtrees:
 
-- `id`: tree ID
-- `nodes`, `edges`: ReactFlow data
-- `variables`: array of local variables
-- `description`: optional subtree description (stored as XML comment)
-- `ports`: array of input/output port definitions for subtrees
+`TreeData` is the core shape for main trees and subtrees:
 
-The main tree is exported using the ID `main_tree_to_execute`.
+```typescript
+interface TreeData {
+  id: string;                      // Tree ID (e.g., "MainTree", "NavigationSubtree")
+  nodes: Node[];                   // ReactFlow nodes
+  edges: Edge[];                   // ReactFlow edges
+  variables: Variable[];           // Local variables in this tree
+  description?: string;            // Optional subtree description (stored as XML comment)
+  ports?: SubTreePort[];           // Input/output port definitions for subtrees
+}
+```
 
-### SubTree Ports
+The `id` field is:
+- For main tree: the filename's stem (e.g., "NavigationTree" from "NavigationTree.xml")
+- For subtrees: any unique string (e.g., "CheckGoal", "MoveRobot")
 
-Subtrees use input/output ports to pass data without sharing the blackboard:
+### Node shape (ReactFlow)
 
-- Ports are defined in `SubTreePort` with `direction`, `type`, `defaultValue`, `required`
-- Stored in XML under `<TreeNodesModel><SubTree ID="...">` with `<input_port>` and `<output_port>` elements
-- When a subtree node is dropped, ports become editable fields on the node
-- Required ports are marked with `required="true"` in XML
+Nodes have this structure in the canvas:
+
+```typescript
+interface Node {
+  id: string;                      // Unique instance ID (e.g., "Sequence_12345")
+  type: 'btNode';                  // Always 'btNode' (single node type for all BT nodes)
+  position: { x: number; y: number };
+  data: {
+    name: string;                  // Display name (e.g., "Sequence", "PrintMessage")
+    category: NodeCategory;        // 'root' | 'action' | 'condition' | 'control' | 'decorator' | 'subtree'
+    type: string;                  // XML node type (e.g., "Sequence", "PrintMessage")
+    color: string;                 // Hex color from getCategoryColor()
+    nodeName?: string;             // Optional custom instance name
+    subtreeId?: string;            // For subtree nodes, the referenced subtree ID
+    fields: NodeField[];           // Editable parameters (name, type, value, valueType)
+    instanceId: string;            // Same as node.id
+  };
+}
+```
+
+All BT node types use the same ReactFlow node type (`'btNode'`) and are differentiated by `data.category` and `data.type`.
 
 ### Node fields
 
-Fields are modeled by `NodeField` in [src/types/index.ts](src/types/index.ts). Each field stores:
+Fields are parameters on a node:
 
-- `type`: string, number, or boolean
-- `valueType`: `literal` or `variable`
-- `value`: raw value or a `{var}` reference
+```typescript
+interface NodeField {
+  name: string;                    // Field name (e.g., "message", "num_attempts")
+  type: 'string' | 'number' | 'boolean';
+  valueType: 'literal' | 'variable';  // How the value is interpreted
+  value: string | number | boolean;   // The actual value
+  description?: string;            // Tooltip/help text
+  portDirection?: 'input' | 'output'; // For subtree port fields only
+}
+```
 
-Node rendering and editing uses this contract in:
+- **Literal**: `valueType = 'literal'`, value is used as-is
+- **Variable**: `valueType = 'variable'`, value is wrapped in `{...}` in XML (e.g., `value = "myVar"` becomes `{myVar}`)
 
-- [src/components/BTNode.tsx](src/components/BTNode.tsx)
-- [src/components/NodePropertiesPanel.tsx](src/components/NodePropertiesPanel.tsx)
+### Subtree ports
+
+Ports define the input/output interface of a subtree:
+
+```typescript
+interface SubTreePort {
+  name: string;                    // Port name (e.g., "target_x", "result")
+  direction: 'input' | 'output' | 'inout';
+  type: 'string' | 'number' | 'boolean';
+  defaultValue?: string;           // Default value if not connected
+  required?: boolean;              // True = must be provided by parent
+  description?: string;
+}
+```
+
+When a subtree node is placed in the canvas, its ports become fields on the node instance. This allows passing data to and from the subtree.
 
 ## State and workflows
 
 ### Workspace store
 
-`workspaceStore.tsx` holds:
+`workspaceStore.tsx` uses a React Context + Reducer pattern to manage global state. The store holds:
 
-- Workspace folder and file list
-- Active file path/name
-- Main tree and subtrees
-- Library subtrees and modified subtree tracking
-- Dirty state and external file modified times
+- **Workspace info**: Folder path and list of XML files in the workspace
+- **Active file**: Path and name of the currently open tree file
+- **Main tree**: The primary `TreeData` (nodes, edges, variables)
+- **Subtrees**: Map of subtrees (`id` → `TreeData`) embedded in the active file
+- **Library subtrees**: Map of subtrees from `subtree_library.xml` (source of truth for all subtrees in the workspace)
+- **Library modified time**: Used to detect external changes
+- **Dirty state**: Whether the active file has unsaved changes
+- **Modified subtree tracking**: Set of subtree IDs that changed since last save (used for workspace-wide sync)
+- **File modification times**: Per-file timestamps for external change detection
+
+The context provides `useWorkspace()` hook for access to `state`, `dispatch`, and helper accessors like `activeTree` and `allSubtreeIds`.
 
 ### Workspace operations
 
-`useWorkspaceOps.ts` provides high-level actions:
+`useWorkspaceOps.ts` is a custom hook providing high-level operations:
 
-- `openWorkspace()` loads the folder and `subtree_library.xml`
-- `openTreeFile()` loads a multi-tree XML file and reconciles with the library
-- `saveWorkspace()` saves the active file, updates the library, and updates other files in the workspace that reference the same subtrees
-- `createNewTree()` creates a new file with the main tree ID set to `main_tree_to_execute`
+- **`openWorkspace(openFileAfter?: boolean)`**: Prompts for a folder, loads it and `subtree_library.xml`. If `openFileAfter=true`, immediately shows file picker to avoid dialog races.
+  
+- **`openTreeFile(filePath?: string)`**: Loads a multi-tree XML file, parses it with `importMultiTreeFromXML()`, and reconciles subtrees against the library. If discrepancies are found, the library version is used as the source of truth.
 
-#### New (developer) notes — welcome modal & workspace open flow
+- **`saveWorkspace()`**: Three-step save:
+  1. Export the active file with all embedded subtrees (main + subtrees) to XML
+  2. Update `subtree_library.xml` with all subtrees from the active file
+  3. Update any other workspace files that reference modified subtrees (auto-reconciliation)
 
-- Summary: the app now shows a blocking **Welcome** modal when there is no active file; it blurs the editor and requires a successful Create/Open to dismiss. The workspace open flow was hardened to avoid a folder+file dialog race.
-- API change (backwards-compatible): `openWorkspace(openFileAfter?: boolean)` — when `openFileAfter` is true the hook will immediately run the tree-file picker from the selected folder (avoids two separate dialog calls and race conditions). Default remains `false`.
-- Files to inspect/modify:
-  - UI: `src/components/WelcomeModal.tsx`, `src/components/WelcomeModal.css`, `src/App.tsx`
-  - Workflow: `src/hooks/useWorkspaceOps.ts` (new `openFileAfter` behavior), `src/components/WorkspaceToolbar.tsx` (menu caller)
-- Callers updated: `WorkspaceToolbar` and the Welcome modal now use `openWorkspace(true)` to run folder+file selection as a single sequence.
-- Testing notes: verify (1) folder → file picker reliably appears and loads the selected XML, (2) cancelling the file picker keeps the modal open, and (3) reloading with no active file re-shows the modal. Add an e2e that simulates folder + file selection to prevent regressions.
+- **`createNewTree()`**: Prompts for a filename, creates a new file with a blank main tree (ID = `main_tree_to_execute`), and opens it.
+
+- **`createNewSubtree(name, description?, ports?)`**: Creates a subtree in memory with optional ports. It can be persisted by saving.
+
+- **`importTreeAsSubtree(filePath, subtreeName, ports)`**: Imports an XML file as a new subtree in the current file.
+
+The hook manages all Electron file dialogs and IPC calls. Logic is async-friendly to handle long file operations.
 
 
 ### Save pipeline
 
-The save operation performs three steps:
+Save is triggered by:
+- Menu "File > Save" (Electron) or keyboard shortcut `Cmd+S`/`Ctrl+S`
+- The handler calls `saveWorkspace()` from `useWorkspaceOps.ts`
 
-1. Write the active file with all embedded subtrees.
-2. Update `subtree_library.xml` with all subtrees from the active file.
-3. Update any other workspace files that reference those subtrees.
+The three-step process:
+
+1. **Export active file**: Call `exportMultiTreeToXML(mainTree, subtrees)` to generate XML with all embedded subtrees
+2. **Update library**: Call `exportSubtreeLibraryToXML(allSubtrees)` and write `subtree_library.xml`
+3. **Reconcile other files**: For each workspace file that references a modified subtree, reload it, replace the subtree version with the library version, and re-export it
+
+After save completes, the workspace state is marked clean (`isDirty = false`) and the modified subtree tracking is cleared.
+
+### Variable system
+
+Variables in BTstudio are editor-side parameters distinct from BehaviorTree.cpp's blackboard:
+
+- Variables are stored in `sessionStorage` per browser tab (survives page reload within the same tab)
+- When a variable is created, a `DeclareVariable` node can optionally be added to the tree
+- `DeclareVariable` nodes have two fields:
+  - `output_key`: The variable name (stored as `{varName}`)
+  - `value`: The initial value
+- Variable references in other nodes use `{varName}` syntax; the editor enforces this with the variable type toggle
+- The VariableEditor component syncs with DeclareVariable nodes via callback refs
 
 ## XML import/export
 
-`xmlSerializer.ts` implements BehaviorTree.cpp v4 handling:
+`xmlSerializer.ts` implements BehaviorTree.cpp v4 handling. It is the only module that knows about XML structure.
 
-- Multi-tree export uses `<root main_tree_to_execute="TreeId">` attribute to identify main tree
-- Tree IDs are derived from filenames, not hardcoded to `main_tree_to_execute`
-- Subtree descriptions are stored as XML comments preceding the `<BehaviorTree>` element (invisible to BT server)
-- Port definitions are stored in `<TreeNodesModel>` with `<input_port>` and `<output_port>` elements
-- Port definitions are persisted in both library and individual tree files
-- Variables are derived from `SetBlackboard` nodes during import
+### Format overview
 
-Export functions:
+- **Root element**: `<root BTCPP_format="4" main_tree_to_execute="MainTreeId">`
+- **Trees**: `<BehaviorTree ID="TreeId">...</BehaviorTree>` elements
+- **Tree descriptions**: Optional XML comments immediately before `<BehaviorTree>` (not parsed by BT server)
+- **Nodes**: `<Action type="NodeType" name="instanceName">...</Action>` (or Condition, Control, etc.)
+- **Port definitions**: `<TreeNodesModel>` contains `<SubTree ID="...">` with `<input_port>` and `<output_port>` children
+- **Variables**: Derived from `SetBlackboard` nodes during import (not stored directly)
 
-- `exportMultiTreeToXML(mainTree, subtrees)`
-- `exportSubtreeLibraryToXML(subtrees)`
+### Subtree ports
 
-Import functions:
+Input/output ports are defined in `<TreeNodesModel>`:
 
-- `importMultiTreeFromXML(xml)`
-- `importSubtreeLibraryFromXML(xml)`
+```xml
+<TreeNodesModel>
+  <SubTree ID="MySubtree">
+    <input_port name="input_param" type="string" default="value" required="true" />
+    <output_port name="output_result" type="number" required="false" />
+  </SubTree>
+</TreeNodesModel>
+```
+
+Port definitions are persisted in **both**:
+- `subtree_library.xml` (library copy)
+- Individual tree files that contain the subtree (working copy)
+
+When a subtree is loaded or reconciled, ports become editable fields on subtree node instances.
+
+### Key functions
+
+**Export:**
+- `exportToXML(nodes, edges, variables)` - Single-tree export
+- `exportMultiTreeToXML(mainTree, subtrees)` - Multi-tree export (main + embedded subtrees)
+- `exportSubtreeLibraryToXML(subtrees)` - Library export
+
+**Import:**
+- `importFromXML(xmlString)` - Single-tree import (returns `TreeData`)
+- `importMultiTreeFromXML(xmlString)` - Multi-tree import (returns `{ mainTree, subtrees, treeOrder }`)
+- `importSubtreeLibraryFromXML(xmlString)` - Library import
+
+**Utilities:**
+- `getReferencedSubtreeIds(nodes)` - Lists all subtree IDs referenced by nodes in a tree
+- Variable extraction is automatic during import (scans for `SetBlackboard` nodes)
 
 ## UI components
 
-### TreeEditor
+### App.tsx
 
-[src/components/TreeEditor.tsx](src/components/TreeEditor.tsx) is the main canvas:
+The root app component sets up:
+- `WorkspaceProvider` context for global state management
+- `AppContent` with session-based variable storage (stored in `sessionStorage`)
+- Refs for cross-component communication (e.g., adding DeclareVariable nodes from the VariableEditor)
+- Passes variables, handlers, and tab ID down to child components
 
-- Uses ReactFlow `useNodesState` / `useEdgesState`
-- Enforces connection rules (single incoming edge, non-control nodes limited to one outgoing edge)
-- Syncs active tree data to the workspace store
-- Handles save via menu and Cmd+S/Ctrl+S
-- Records history in `historyPast` / `historyFuture` for undo/redo
+The app uses React Context API to share workspace state and provides callback refs for operations that need to communicate between distant components (e.g., adding a DeclareVariable node when a new variable is created).
 
-### NodePalette
+### TreeEditor.tsx
 
-[src/components/NodePalette.tsx](src/components/NodePalette.tsx) provides two modes:
+The main canvas using ReactFlow. Responsibilities:
 
-- Nodes: built-in definitions from `nodeLibrary.ts`
-- Library: dynamically loaded subtrees from `subtree_library.xml`
+- **Node and edge management**: Maintains ReactFlow state (`useNodesState`, `useEdgesState`)
+- **Connection rules**: Enforces single-input edges per node; control nodes allow multiple outputs, others max one
+- **History/undo-redo**: Maintains `historyPast` and `historyFuture` stacks; uses `isTimeTravelRef` to avoid recording during undo/redo
+- **XML import/export**: Handles `Cmd+S`/`Ctrl+S` saves and menu-triggered exports
+- **Workspace sync**: Syncs active tree to `workspaceStore` on node/edge changes
+- **Variable integration**: Manages DeclareVariable nodes when variables are added/removed
+- **DeclareVariable node creation**: Uses callback ref from App to create nodes in response to VariableEditor actions
+- **Session persistence**: Stores tree state in `sessionStorage` per tab ID to survive reloads
 
-Dragging a library subtree into a tree inserts a `SubTree` node and ensures the subtree is present in the current file.
+Key methods:
+- `onNodesChange` / `onEdgesChange` - ReactFlow change handlers
+- `onConnect` - Custom connection validation
+- `onDrop` - Creates nodes from palette drops (sets `Node.type` to `'btNode'`)
+- `handleSave` - Exports to XML and writes file
+- `handleExport` - Shows native save dialog, exports without changing active file
+- `undo()` / `redo()` - History navigation
 
-### SubTreeTabBar
+### BTNode.tsx
 
-[src/components/SubTreeTabBar.tsx](src/components/SubTreeTabBar.tsx) switches between main and subtrees and shows dirty indicators for modified trees.
+The ReactFlow node component. Renders:
 
-### VariableEditor
+- **Header** with node name and optional custom instance name (`nodeName`)
+- **Fields** with values and value-type indicators (literal vs. variable)
+- **Handles** (top and bottom) for connections
+- **Port fields** (for subtree nodes): input ports and output ports are displayed with directional labels
 
-[src/components/VariableEditor.tsx](src/components/VariableEditor.tsx) manages the local variable list for the active tree. Variables are serialized as `{varName}` in node fields.
+The component is memoized to prevent unnecessary re-renders during canvas interactions. Fields are displayed differently for subtree nodes (input ports at top, output ports at bottom).
+
+### NodePropertiesPanel.tsx
+
+Right-side panel for editing the selected node. Features:
+
+- **Node name editing**: Custom instance name (`nodeName`)
+- **Field editing**: Text, number, boolean, and variable reference editors
+- **Value type toggle**: Switch between literal and variable references (`{varName}` syntax)
+- **Port editing** (subtree nodes): Edit input/output port definitions
+- **Real-time sync**: Updates `TreeEditor` state via `onUpdateNodeField` callback
+
+When a subtree node is selected, ports become editable fields. Changing port definitions updates both the node instance and the library.
+
+### NodePalette.tsx
+
+Left-side palette with two modes:
+
+- **Nodes**: Built-in node definitions from `nodeLibrary.ts`, grouped by category
+- **Library**: Dynamically loaded subtrees from `subtree_library.xml`, with search/filter
+
+Features:
+
+- **Category colors**: Each node type is color-coded (root=red, action=green, etc.)
+- **Port editor UI**: For subtree creation, allows defining input/output ports inline
+- **Drag-and-drop**: `onDragStart` sets `application/reactflow` payload with node definition
+- **Library subtree insertion**: Dragging a library subtree auto-ensures it's present in the current file
+
+### SubTreeTabBar.tsx
+
+Horizontal tabs for switching between main tree and subtrees. Features:
+
+- **Main tree tab**: Always visible (shows main tree ID, e.g., `main_tree_to_execute`)
+- **Subtree tabs**: One per subtree in the current file
+- **Dirty indicators**: Visual marker (dot or highlight) for modified subtrees
+- **Search/filter**: Type to quickly find a subtree
+- **Port display**: When editing a subtree, shows its input/output port definitions
+- **Click to switch**: Calls `dispatch({ type: 'SET_ACTIVE_TREE', treeId })`
+
+### VariableEditor.tsx
+
+Right-side panel for managing variables. Features:
+
+- **Add variable**: Input fields for name and value
+- **Edit variable**: Click to edit name or value
+- **Delete variable**: Remove a variable (triggers DeclareVariable node deletion if applicable)
+- **Sync with DeclareVariable nodes**: When a variable is updated, the corresponding node is also updated
+
+Variables are persisted in `sessionStorage` per tab and are distinct from the blackboard (BehaviorTree.cpp concept). Variables are used for editor-side parameter management and are serialized in the XML.
+
+### WelcomeModal.tsx
+
+Blocking modal shown when there is no active file. Features:
+
+- **Non-dismissible**: Cannot be closed without a successful action
+- **Background blur**: Parent blurs the editor when modal is active
+- **Three actions**: 
+  - "Create New Tree" - Creates a new file with a blank main tree
+  - "Open Workspace" - Selects a folder, then immediately shows file picker
+  - "Open File" - Shows file picker (if workspace is already open)
+
+The modal uses `openWorkspace(true)` to avoid UI races when chaining folder + file dialogs.
+
+### WorkspaceToolbar.tsx
+
+An invisible component that registers Electron menu event listeners (`onMenuOpenWorkspace`, etc.). It has no visual UI but dispatches workspace operations in response to menu actions. This separation keeps menu handling out of the visible UI layer.
 
 ## Build and scripts
 
-Scripts in [package.json](package.json):
+### Development
 
-- `npm start` runs the React dev server (opens at http://localhost:3000)
-- `npm run electron:dev` runs the Electron shell with the dev server
-- `npm run build` builds production assets to build/ directory
-- `npx serve -s build` serves the production build locally
+- **`npm start`** - Start React dev server (usually http://localhost:3000)
+- **`npm run electron:dev`** - Concurrently run React dev server and Electron shell. Electron will automatically reload when files change.
+- **`npm test`** - Run tests (using react-scripts test)
 
-There are no automated tests in the repository.
+### Production
+
+- **`npm run build`** - Build React production bundle to `build/` directory
+- **`npm run electron:build`** - Build production React bundle and package as Electron installers (macOS `.dmg`, Linux `.AppImage`)
+- **`npm run electron:pack`** - Package for current platform only (no installer)
+
+### Release process
+
+Releases are automated via GitHub Actions when a version tag is pushed:
+
+1. Update `version` in `package.json`: `npm version patch|minor|major`
+2. Push the commit and tag: `git push && git push --tags`
+3. GitHub Actions builds both macOS (Apple Silicon universal) and Linux (x64) installers
+4. Draft release is auto-created; edit release notes and publish
+
+See `package.json` build config for platform-specific details (code signing, target architectures, etc.).
+
+**Important**: Auto-update is configured in `electron/main.js` using `electron-updater` and points to GitHub releases.
 
 ## Developer quick reference
 
-### Adding a new SubTree
+### Adding a new built-in node type
 
 **Location:** [src/data/nodeLibrary.ts](src/data/nodeLibrary.ts)
 
-**Template:**
+Edit the `nodeLibrary` array:
+
 ```typescript
 {
   id: 'unique_id',
-  type: 'NodeTypeName',
-  category: 'subtree',
-  name: 'Display Name',
-  description: 'What this subtree does',
-  subtreeId: 'ActualBehaviorTreeID', // Must match ID in XML
-  ports: [
-    { 
-      name: 'input_param', 
-      direction: 'input',  // 'input' | 'output'
-      type: 'string',      // 'string' | 'number' | 'boolean'
-      defaultValue: '',
-      required: true,
-      description: 'Parameter description' 
-    },
-    { 
-      name: 'output_result', 
-      direction: 'output',
-      type: 'string',
-      required: false,
-      description: 'Output value' 
-    },
-  ],
-  fields: [] // Fields are auto-generated from ports when dropped
-}
-```
-
-### Modifying XML export format
-
-**Location:** [src/utils/xmlSerializer.ts](src/utils/xmlSerializer.ts)
-
-**Function to modify:** `serializeNodeRecursive()`
-
-**Example - Add custom attribute:**
-```typescript
-// In serializeNodeRecursive(), find the attributes section:
-const attributes: string[] = [];
-
-// Add your custom attribute
-if (data?.customField) {
-  attributes.push(`customAttr="${data.customField}"`);
-}
-
-// Rest of the function...
-```
-
-### Modifying XML import format
-
-**Location:** [src/utils/xmlSerializer.ts](src/utils/xmlSerializer.ts)
-
-**Function to modify:** `parseNodeRecursive()`
-
-**Example - Parse custom attribute:**
-```typescript
-// In parseNodeRecursive(), after creating the node:
-const customValue = element.getAttribute('customAttr');
-if (customValue) {
-  // Add to node data
-  node.data.customField = customValue;
-}
-```
-
-### Adding a new node type
-
-**1. Add to nodeLibrary** ([src/data/nodeLibrary.ts](src/data/nodeLibrary.ts)):
-```typescript
-{
-  id: 'my_action',
-  type: 'MyCustomAction',
-  category: 'action', // or 'condition', 'control', 'decorator'
-  name: 'My Custom Action',
-  description: 'Does something custom',
+  type: 'MyCustomAction',      // XML node type
+  category: 'action',          // 'root' | 'action' | 'condition' | 'control' | 'decorator' | 'subtree'
+  name: 'My Custom Action',    // Display name
+  description: 'What it does',
   fields: [
     {
-      name: 'parameter1',
+      name: 'param1',
       type: 'string',
       valueType: 'literal',
-      value: 'default',
-      description: 'First parameter'
+      value: 'default_value',
+      description: 'A parameter'
     }
   ]
 }
 ```
 
-**2. (Optional) Create custom component**:
+The node will automatically:
+- Appear in the Nodes palette (grouped by category)
+- Be draggable onto the canvas
+- Show its fields in the properties panel
+- Serialize/deserialize correctly in XML
+
+### Adding a new subtree to the library
+
+Use the palette's **Library tab** → "Create New Subtree":
+
+1. Enter subtree name (becomes the tree ID)
+2. Add optional description
+3. Define input/output ports
+4. Save to `subtree_library.xml`
+
+The subtree can then be:
+- Dragged from the Library palette onto any canvas
+- Edited in the SubTreeTabBar
+- Referenced by multiple files in the workspace
+
+### Adding a new component
+
+1. Create `src/components/MyComponent.tsx`
+2. Import and use in the parent component
+3. If it needs workspace state, call `useWorkspace()` from `workspaceStore`
+4. If it needs file operations, call `useWorkspaceOps()` from the hook
+
+### Modifying XML format
+
+All XML parsing/generation happens in `xmlSerializer.ts`. To add a custom attribute:
+
+**To export:**
 ```typescript
-// src/components/MyCustomNode.tsx
-import React from 'react';
-import { Handle, Position } from 'reactflow';
-
-const MyCustomNode = ({ data }) => {
-  return (
-    <div style={{ background: data.color }}>
-      <Handle type="target" position={Position.Top} />
-      <div>{data.name}</div>
-      <Handle type="source" position={Position.Bottom} />
-    </div>
-  );
-};
-
-export default MyCustomNode;
-```
-
-**3. Register in TreeEditor** ([src/components/TreeEditor.tsx](src/components/TreeEditor.tsx)):
-```typescript
-import MyCustomNode from './MyCustomNode';
-
-const nodeTypes = {
-  btNode: BTNode,
-  myCustom: MyCustomNode, // Add here
-};
-
-// In onDrop, conditionally use your type:
-const newNode: Node = {
-  id: `${nodeDef.type}_${Date.now()}`,
-  type: nodeDef.id === 'my_action' ? 'myCustom' : 'btNode',
-  // ...rest
-};
-```
-
-### Variable reference syntax
-
-**In XML:**
-- Literal: `value="42"`
-- Variable: `value="{myVariable}"`
-
-**In Code:**
-```typescript
-// Check if value is a variable reference
-const varMatch = value.match(/^\{(.+)\}$/);
-if (varMatch) {
-  const variableName = varMatch[1];
-  // This is a variable reference
+// In exportToXML() or serializeNodeRecursive():
+if (node.data.myField) {
+  attributes.push(`myAttr="${node.data.myField}"`);
 }
 ```
 
-### Color scheme
-
-**Function:** `getCategoryColor()` in [src/data/nodeLibrary.ts](src/data/nodeLibrary.ts)
-
-| Category | Color | Hex |
-|----------|-------|-----|
-| Root | Red | #F44336 |
-| Action | Green | #4CAF50 |
-| Condition | Blue | #2196F3 |
-| Control | Orange | #FF9800 |
-| Decorator | Purple | #9C27B0 |
-| SubTree | Cyan | #00BCD4 |
+**To import:**
+```typescript
+// In importFromXML() or parseNodeRecursive():
+const myValue = element.getAttribute('myAttr');
+if (myValue) {
+  node.data.myField = myValue;
+}
+```
 
 ### Connection rules
 
-**Location:** [src/components/TreeEditor.tsx](src/components/TreeEditor.tsx) - `onConnect` callback
+Enforced in `TreeEditor.tsx` `onConnect` callback:
 
-**Current Rules:**
-- Max 1 incoming edge per node (except root)
-- Control nodes: unlimited outgoing edges
-- Other nodes: max 1 outgoing edge
+- **Max 1 incoming edge**: Any non-root node accepts only one parent
+- **Control nodes**: Sequence, Fallback, etc. → unlimited children
+- **Other nodes**: Action, Condition, Decorator → max 1 child
 
-**Modify:**
-```typescript
-const onConnect = useCallback((params: Connection) => {
-  setEdges((eds) => {
-    // Your custom validation logic here
-    
-    return addEdge(params, eds);
-  });
-}, [setEdges, nodes]);
-```
+To modify, edit the validation logic in `onConnect`.
 
-### Undo/Redo implementation
+### Node colors
 
-**Location:** [src/components/TreeEditor.tsx](src/components/TreeEditor.tsx)
+Defined by `getCategoryColor()` in `nodeLibrary.ts`:
 
-**Key Components:**
-- `historyPast` - Stack of previous states
-- `historyFuture` - Stack for redo
-- `isTimeTravelRef` - Prevents recording during undo/redo
-- `isDraggingRef` - Prevents recording during drag
+| Category | Color |
+|----------|-------|
+| root | #F44336 (red) |
+| action | #4CAF50 (green) |
+| condition | #2196F3 (blue) |
+| control | #FF9800 (orange) |
+| decorator | #9C27B0 (purple) |
+| subtree | #00BCD4 (cyan) |
 
+### Undo/redo
 
-### Import/Export hooks
+In `TreeEditor.tsx`:
 
-**Export Hook:**
-```typescript
-// In TreeEditor.tsx
-const handleExport = useCallback(() => {
-  const xml = exportToXML(nodes, edges, variables);
-  // Modify xml here if needed
-  // ... download logic
-}, [nodes, edges, variables]);
-```
+- **Record state**: After `onNodesChange`, `onEdgesChange`, call `addToHistory()`
+- **Undo**: `undo()` pops from `historyPast`, pushes current to `historyFuture`
+- **Redo**: `redo()` pops from `historyFuture`, pushes current to `historyPast`
+- **Prevent during time travel**: Use `isTimeTravelRef.current = true` to skip recording
 
-**Import Hook:**
-```typescript
-// In TreeEditor.tsx
-const handleImport = useCallback(() => {
-  // ... file selection
-  const { nodes, edges } = importFromXML(xmlString);
-  // Modify nodes/edges here if needed
-  setNodes(nodes);
-  setEdges(edges);
-}, []);
-```
+History limit is `HISTORY_LIMIT = 20` (configurable).
 
-### Common tasks
+### Keyboard shortcuts
 
-**Reset tree to root only:**
-Delete all nodes except root, or import an empty XML:
-```xml
-<?xml version="1.0"?>
-<root BTCPP_format="4">
-  <BehaviorTree ID="MainTree">
-  </BehaviorTree>
-</root>
-```
+- **Cmd+S / Ctrl+S**: Save active file (calls `TreeEditor.handleSave()`)
+- **Cmd+Z / Ctrl+Z**: Undo
+- **Cmd+Shift+Z / Ctrl+Shift+Z**: Redo
+- **Escape**: Deselect node (in canvas)
 
-**Export to different filename:**
-Modify `handleExport()`:
-```typescript
-link.download = 'my_custom_tree.xml';
-```
+Shortcuts are registered in `TreeEditor.tsx` via `useEffect` and window event listeners.
 
-**Add validation before export:**
-```typescript
-const handleExport = useCallback(() => {
-  // Validate tree
-  const hasRoot = nodes.some(n => n.data?.category === 'root');
-  if (!hasRoot) {
-    alert('Tree must have a root node');
-    return;
-  }
-  
-  // Proceed with export
-  const xml = exportToXML(nodes, edges, variables);
-  // ...
-}, [nodes, edges, variables]);
-```
+### Testing patterns
 
-## Debugging tips
+The app has no automated test suite. For manual testing:
 
-**Console Logging:**
+1. **Tree import/export**: Modify an XML file, open it, save it, check the file contents
+2. **Workspace sync**: Edit a subtree in one file, save it, open another file that references it—the library version should appear
+3. **Variable sync**: Add a variable, edit its value, verify DeclareVariable nodes update
+4. **External changes**: Modify `subtree_library.xml` externally, reload the app, check for warning dialog
+
+### Common debugging
+
+Print debug info:
+
 ```typescript
 // In TreeEditor.tsx
 console.log('Current nodes:', nodes);
 console.log('Current edges:', edges);
+console.log('Workspace state:', workspaceState);
+
+// In xmlSerializer.ts
+console.log('Generated XML:', exportToXML(nodes, edges, variables));
 ```
 
-**Inspect Node Data:**
-```typescript
-// In BTNode.tsx
-console.log('Node data:', data);
-```
-
-**Check XML Output:**
-```typescript
-// In handleExport
-const xml = exportToXML(nodes, edges, variables);
-console.log('Generated XML:', xml);
-```
-
-**Validate Import:**
-```typescript
-// In handleImport
-const { nodes, edges } = importFromXML(xmlString);
-console.log('Imported nodes:', nodes);
-console.log('Imported edges:', edges);
-```
-
-## Performance considerations
-
-- **Large Trees**: Tree rendering uses ReactFlow which is optimized for performance
-- **History Limit**: Currently 20 operations (`HISTORY_LIMIT = 20`)
-- **Node Spacing**: Import uses fixed spacing (200px), may need adjustment for large trees
-
-## Security notes
-
-- XML parsing uses browser's `DOMParser` (safe)
-- No server-side processing
-- All operations are client-side only
-- File downloads use Blob URLs (cleaned up after download)
-
-## Release Process
-
-BTstudio uses GitHub Actions for automated builds and releases. The CI pipeline builds platform-specific installers and supports auto-updates through electron-updater.
-
-### Creating a New Release
-
-1. **Update version in package.json**
-   ```bash
-   npm version patch  # or minor, or major
-   ```
-   This will update the version number and create a git commit.
-
-2. **Push the version tag**
-   ```bash
-   git push && git push --tags
-   ```
-   Pushing a tag starting with `v` (e.g., `v1.1.1`) triggers the GitHub Actions workflow.
-
-3. **Monitor the build**
-   - Go to the [Actions tab](https://github.com/AdityaGupta0/BTstudio/actions) on GitHub
-   - The workflow builds both macOS (Apple Silicon) and Linux (x86) packages
-   - Build artifacts: `.dmg` for macOS, `.AppImage` for Linux
-
-4. **Publish the release**
-   - Once the workflow completes, go to [Releases](https://github.com/AdityaGupta0/BTstudio/releases)
-   - Find the draft release created by the workflow
-   - Edit the release notes as needed (auto-generated notes are provided)
-   - Click "Publish release" to make it public
-
-
-### Platform-Specific Notes
-
-**macOS**
-- Builds a `.dmg` universal installer
-- Not code-signed (will show "unidentified developer" warning)
-- Users must right-click → Open on first launch
-
-**Linux**
-- Builds an `.AppImage` for x86-64 architecture
-- Users may need to make it executable: `chmod +x BTstudio-*.AppImage`
-- No additional dependencies required
-
-### Build Configuration
-
-The build is configured in [package.json](package.json):
-- `build.publish`: Points to this GitHub repository for auto-updates
-- `build.mac`: Targets Apple Silicon (arm64) DMG
-- `build.linux`: Targets x64 AppImage
-
-Auto-update is implemented in [electron/main.js](electron/main.js) using `electron-updater`.
+Use React DevTools to inspect component state and Redux DevTools to inspect workspace reducer actions.

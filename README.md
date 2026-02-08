@@ -15,14 +15,14 @@ BehaviorTree Studio is a visual editor for BehaviorTree.cpp XML. It uses a works
 Open a workspace folder that contains tree XML files. The app also uses a shared library file named `subtree_library.xml` inside the workspace to store reusable subtrees.
 
 ### Main tree and subtrees
-Each file contains a main tree plus optional subtrees. The main tree is exported with the ID `main_tree_to_execute` to match BehaviorTree.cpp expectations. Subtrees are referenced by name and are defined as additional `<BehaviorTree>` elements in the same file.
+Each file contains a main tree plus optional subtrees. The main tree is exported with the tag `main_tree_to_execute` and and ID matching it's innitial filename to match BehaviorTree.cpp expectations. Subtrees are referenced by name and are defined as additional `<BehaviorTree>` elements in the same file.
 
 ### Subtree library
-The library is the source of truth for shared subtrees. When you save, the current file is saved, the library is updated, and any other files that reference those subtrees are updated as well.
+The library is the ground truth for shared subtrees. When you save, the current file is saved, the library is updated, and any other files within your workspace that reference those subtrees are updated as well.
 
 ## System requirements
 
-- Node.js 18+ recommended
+- Node.js 22+ recommended
 - npm (ships with Node.js)
 
 ## Getting started
@@ -130,6 +130,7 @@ The web UI opens at `http://localhost:3000` and can export XML via downloads, bu
 - Undo: Cmd+Z / Ctrl+Z
 - Redo: Cmd+Shift+Z / Ctrl+Shift+Z
 - Delete: Delete key (removes selected node)
+- Restart: Cmd+R / Ctrl+R (reloads window and closes file without saving)
 
 ## Node categories
 
@@ -156,8 +157,9 @@ Node names are exported as the `name` attribute in BehaviorTree.cpp XML format:
 - This does not interoperate with Groot2 projects.
 - There is no automatic save; use File → Save.
 - Node names use the standard BehaviorTree.cpp `name` attribute.
-- Variables use `{varName}` syntax in XML.
 - Blackboard is NOT shared between subtrees; use ports for data passing.
+- Be prepared to dive into XML when nessecary; renaming and other refactoring functions are not in the GUI.
+- Be careful when making edits outside to the XML outside of BTstudio as it can lead to unexpected behavior.
 
 ## More documentation
 

@@ -157,90 +157,12 @@ interface BTNodeData {
 - **Import**: `name` attribute is parsed and stored separately from regular fields
 - **SubTrees**: Also support the `name` attribute
 
-## Enhanced export functionality
-
-The export system provides better file management:
-
-### Features
-- **Remember Import Source**: If you imported a file, exporting defaults to that filename
-- **File Save Dialog**: On supported browsers, you can choose where to save the file
-- **Overwrite Protection**: When saving to the same location, you'll be prompted to confirm
-- **Fallback Support**: On older browsers, falls back to traditional download
-
-### Browser support
-- **Modern Browsers** (Chrome 86+, Edge 86+): Full file picker support
-- **Other Browsers**: Traditional download with suggested filename
-
-### Usage
-
-**Export with Modern API:**
-1. Click "📤 Export" button
-2. Choose location and filename in the save dialog
-3. Confirm to save or overwrite
-
-**Export with Fallback:**
-1. Click "📤 Export" button
-2. File downloads to your default downloads folder
-3. Filename is based on the last imported file or defaults to `behavior_tree.xml`
-
-**After Import:**
-- If you imported `my_tree.xml`, exports will default to `my_tree.xml`
-- This makes it easy to edit and save back to the same file
-
-## BehaviorTree.cpp compatibility
-
-### XML format compliance
-All features maintain full compatibility with BehaviorTree.cpp version 4.x:
-
-**Node Name Attribute:**
-- The `name` attribute is a standard BehaviorTree.cpp feature
-- Groot2 uses this same format
-- Names are optional and can be omitted
-
-**Example Compatibility:**
-```xml
-<?xml version="1.0"?>
-<root BTCPP_format="4">
-  <BehaviorTree ID="MainTree">
-    <Sequence name="PatrolSequence">
-      <SubTree ID="MoveToWaypoint" name="GoToPoint1" waypoint="{wp1}"/>
-      <Action name="Wait" duration="5000"/>
-      <Condition name="CheckBattery" threshold="20"/>
-    </Sequence>
-  </BehaviorTree>
-</root>
-```
-
-### Groot2 import/export
-Files created in Groot2 can be imported into BTstudio and vice versa:
-
-**Import from Groot2:**
-- Node names are preserved
-- All attributes are maintained
-- Tree structure is retained
-
-**Export to Groot2:**
-- BTstudio XML can be opened in Groot2
-- Node names will appear correctly
-- Full compatibility maintained
 
 ### XML attribute ordering
 BehaviorTree.cpp doesn't require specific attribute ordering, but BTstudio follows this convention:
 1. `name` attribute (if present)
 2. Other attributes in order they appear in node definition
 3. Port mappings for SubTrees
-
-## Migration from previous versions
-
-### Existing trees
-- **No Breaking Changes**: All existing trees work without modification
-- **Default Behavior**: Nodes without names continue showing category
-- **Gradual Adoption**: Add names only where needed
-
-### Updating workflow
-1. **Import Old Files**: Works seamlessly
-2. **Add Names**: Optional - only where it improves clarity
-3. **Export**: New format is backward compatible
 
 ## Add a custom node component
 
@@ -286,58 +208,3 @@ export const getCategoryColor = (category: string): string => {
   }
 };
 ```
-
-## Troubleshooting customizations
-
-### File save dialog not appearing
-**Issue**: Export downloads instead of showing save dialog  
-**Reason**: Browser doesn't support File System Access API  
-**Solution**: This is expected behavior - file will download normally
-
-### Node name not showing
-**Issue**: Entered name doesn't appear on node  
-**Reason**: Name might be cleared or node not selected  
-**Solution**:
-1. Click the node to select it
-2. Check Node Properties panel
-3. Re-enter name and verify it's saved
-
-### Export filename wrong
-**Issue**: Export uses wrong filename  
-**Reason**: Filename is based on last import  
-**Solution**:
-1. Modern browsers: Choose filename in save dialog
-2. Other browsers: Rename file after download
-
-### Groot2 import issues
-**Issue**: Some nodes don't import correctly  
-**Reason**: May use unsupported BehaviorTree.cpp features  
-**Solution**:
-1. Check that node types exist in `nodeLibrary.ts`
-2. Add custom nodes if needed
-3. Report unsupported features
-
-## Future enhancements
-
-Potential improvements for future versions:
-
-1. **Keyboard Shortcuts**: Add Ctrl+S/Cmd+S for quick save (already implemented in TreeEditor)
-2. **Auto-save**: Periodic automatic exports
-3. **Name Suggestions**: Auto-generate descriptive names based on node configuration
-4. **Bulk Naming**: Apply naming conventions to multiple nodes
-5. **Name Templates**: Pre-defined naming patterns for common use cases
-
-## Technical notes
-
-### File System Access API
-The export uses the modern [File System Access API](https://developer.mozilla.org/en-US/docs/Web/API/File_System_Access_API) when available:
-
-```typescript
-if ('showSaveFilePicker' in window) {
-  // Use modern API
-} else {
-  // Fallback to download
-}
-```
-
-
