@@ -526,7 +526,7 @@ function buildTreeStructure(nodes: Node[], edges: Edge[]): {
   });
   
   // Sort children by their visual position (left to right)
-  childrenMap.forEach((children, parent) => {
+  childrenMap.forEach((children, _parent) => {
     children.sort((a, b) => {
       const nodeA = nodes.find(n => n.id === a);
       const nodeB = nodes.find(n => n.id === b);

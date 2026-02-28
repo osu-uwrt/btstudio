@@ -53,7 +53,7 @@ const PortEditor: React.FC<PortEditorProps> = ({ ports, onPortsChange }) => {
             <Plus size={12} /> Add
           </button>
         </div>
-        {inputPorts.map((port, idx) => {
+        {inputPorts.map((port) => {
           const globalIdx = ports.findIndex(p => p === port);
           return (
             <div key={globalIdx} className="port-row">

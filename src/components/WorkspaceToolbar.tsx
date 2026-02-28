@@ -1,11 +1,12 @@
 /**
  * WorkspaceToolbar Component
- * 
- * Handles workspace-level operations and menu events in Electron mode.
- * This component doesn't render visible UI but manages Electron menu listeners.
+ *
+ * Invisible component that listens for Electron menu events
+ * (open workspace, open tree, new tree) and delegates to workspace operations.
+ * Renders no visible UI.
  */
 
-import { useEffect } from 'react';
+import React, { useEffect } from 'react';
 import { useWorkspaceOps } from '../hooks/useWorkspaceOps';
 
 export const WorkspaceToolbar: React.FC = () => {

@@ -548,7 +548,7 @@ async function checkLibraryDiscrepancies(
  * Update all workspace files that reference modified subtrees
  */
 async function updateWorkspaceFiles(
-  workspacePath: string,
+  _workspacePath: string,
   workspaceFiles: WorkspaceFile[],
   excludePath: string,
   modifiedSubtreeIds: Set<string>,

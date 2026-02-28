@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import NodePalette from './components/NodePalette';
 import TreeEditor from './components/TreeEditor';
 import VariableEditor from './components/VariableEditor';
