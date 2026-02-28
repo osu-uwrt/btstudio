@@ -1,13 +1,26 @@
+/**
+ * NodePropertiesPanel - Side panel for editing a selected node's properties.
+ *
+ * Displays the node type, category, editable instance name, and all fields
+ * with literal/variable mode toggles. Special handling exists for
+ * SetBlackboard and DeclareVariable `output_key` fields (variable dropdown
+ * or bracket-wrapped text input respectively).
+ */
+
 import React, { useState } from 'react';
 import { X } from 'lucide-react';
 import { Node } from 'reactflow';
-import { Variable } from '../types';
+import { NodeField, Variable } from '../types';
 import './NodePropertiesPanel.css';
+
+// ---------------------------------------------------------------------------
+// Props
+// ---------------------------------------------------------------------------
 
 interface NodePropertiesPanelProps {
   node: Node;
   variables: Variable[];
-  onUpdateField: (nodeId: string, fieldName: string, value: any, valueType: 'literal' | 'variable') => void;
+  onUpdateField: (nodeId: string, fieldName: string, value: string | number | boolean, valueType: 'literal' | 'variable') => void;
   onUpdateName?: (nodeId: string, name: string) => void;
   onClose: () => void;
 }
@@ -19,10 +32,10 @@ const NodePropertiesPanel: React.FC<NodePropertiesPanelProps> = ({
   onUpdateName,
   onClose
 }) => {
-  const [fieldEdits, setFieldEdits] = useState<Record<string, { value: any; valueType: 'literal' | 'variable' }>>({});
+  const [fieldEdits, setFieldEdits] = useState<Record<string, { value: string | number | boolean; valueType: 'literal' | 'variable' }>>({});
   const [nodeName, setNodeName] = useState<string>(node.data?.nodeName || '');
 
-  const handleFieldChange = (fieldName: string, value: any) => {
+  const handleFieldChange = (fieldName: string, value: string | number | boolean) => {
     const currentEdit = fieldEdits[fieldName] || { valueType: 'literal' };
     const updated = { ...currentEdit, value };
     setFieldEdits({ ...fieldEdits, [fieldName]: updated });
@@ -80,7 +93,7 @@ const NodePropertiesPanel: React.FC<NodePropertiesPanelProps> = ({
         {fields.length > 0 && (
           <div className="fields-section">
             <h4>Fields</h4>
-            {fields.map((field: any, idx: number) => {
+            {fields.map((field: NodeField, idx: number) => {
               const currentEdit = fieldEdits[field.name] || {
                 value: field.value,
                 valueType: field.valueType || 'literal'

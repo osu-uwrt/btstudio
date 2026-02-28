@@ -1,3 +1,19 @@
+/**
+ * Root application component.
+ *
+ * `App` wraps everything in `WorkspaceProvider`.
+ * `AppContent` sets up:
+ *   - Tab identity (sessionStorage-backed UUID) for multi-tab safety
+ *   - Variable state + sessionStorage persistence
+ *   - Callback refs bridging VariableEditor <-> TreeEditor for
+ *     DeclareVariable node CRUD (add / delete / update)
+ *   - Electron detection and conditional UI (toolbar, welcome modal)
+ *
+ * The ref-based callback pattern (`addDeclareVariableNodeRef` etc.) exists
+ * because TreeEditor registers its handlers after mount, and VariableEditor
+ * needs to call them synchronously.
+ */
+
 import { useState, useCallback, useEffect, useRef } from 'react';
 import NodePalette from './components/NodePalette';
 import TreeEditor from './components/TreeEditor';
@@ -69,7 +85,7 @@ function AppContent() {
   const handleUpdateNodeField = useCallback((
     nodeId: string,
     fieldName: string,
-    value: any,
+    value: string | number | boolean,
     valueType: 'literal' | 'variable'
   ) => {
     // This would update the node's field in your state management

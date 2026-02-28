@@ -1,3 +1,21 @@
+/**
+ * TreeEditor Component
+ *
+ * The main canvas for editing behavior trees. Wraps ReactFlow and wires up:
+ * - Node drag-and-drop from the palette (via `application/reactflow` payload)
+ * - Connection validation (single-incoming, control vs. non-control outgoing limits)
+ * - Undo/redo history (snapshot-based, with `isTimeTravelRef` guard)
+ * - Session persistence through `sessionStorage`
+ * - Bi-directional sync between local ReactFlow state and the workspace store
+ * - DeclareVariable node lifecycle (add/delete/update driven by VariableEditor callbacks)
+ * - Keyboard shortcuts (Ctrl/Cmd+Z undo, Ctrl/Cmd+Shift+Z redo, Ctrl/Cmd+S save)
+ * - Electron menu event integration (save, export)
+ *
+ * Data flow:
+ *   Palette  -->  onDrop  -->  setNodes  --sync-->  workspaceStore
+ *   workspaceStore.activeTree  --load-->  setNodes/setEdges
+ */
+
 import React, { useCallback, useState, useEffect, useRef } from 'react';
 import ReactFlow, {
   Node,
@@ -11,9 +29,10 @@ import ReactFlow, {
   ConnectionMode,
   Panel,
   NodeChange,
+  ReactFlowInstance,
 } from 'reactflow';
 import 'reactflow/dist/style.css';
-import { BTNodeDefinition, Variable } from '../types';
+import { BTNodeDefinition, NodeField, Variable } from '../types';
 import { getCategoryColor, nodeLibrary } from '../data/nodeLibrary';
 import { exportToXML, exportMultiTreeToXML } from '../utils/xmlSerializer';
 import { useWorkspace } from '../store/workspaceStore';
@@ -24,7 +43,7 @@ import './TreeEditor.css';
 
 interface TreeEditorProps {
   variables: Variable[];
-  onUpdateNodeField: (nodeId: string, fieldName: string, value: any, valueType: 'literal' | 'variable') => void;
+  onUpdateNodeField: (nodeId: string, fieldName: string, value: string | number | boolean, valueType: 'literal' | 'variable') => void;
   onAddDeclareVariableNode: (callback: (variable: Variable) => void) => void;
   onDeleteDeclareVariableNode: (callback: (variableName: string) => void) => void;
   onUpdateDeclareVariableNode: (callback: (variableName: string, newValue: string) => void) => void;
@@ -50,7 +69,7 @@ const TreeEditor: React.FC<TreeEditorProps> = ({
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
   const [selectedNode, setSelectedNode] = useState<string | null>(null);
-  const [reactFlowInstance, setReactFlowInstance] = useState<any>(null);
+  const [reactFlowInstance, setReactFlowInstance] = useState<ReactFlowInstance | null>(null);
   const [lastImportedFile, setLastImportedFile] = useState<string>('behavior_tree.xml');
   const [isSessionChecked, setIsSessionChecked] = useState(false);
 
@@ -104,7 +123,7 @@ const TreeEditor: React.FC<TreeEditorProps> = ({
       setNodes((prevNodes) => 
         prevNodes.filter((node) => {
           if (node.data?.type === 'DeclareVariable') {
-            const outputKeyField = node.data.fields?.find((f: any) => f.name === 'output_key');
+            const outputKeyField = node.data.fields?.find((f: NodeField) => f.name === 'output_key');
             // Strip brackets for comparison
             const fieldValue = String(outputKeyField?.value || '').replace(/^\{|\}$/g, '');
             return fieldValue !== variableName;
@@ -119,11 +138,11 @@ const TreeEditor: React.FC<TreeEditorProps> = ({
       setNodes((prevNodes) => 
         prevNodes.map((node) => {
           if (node.data?.type === 'DeclareVariable') {
-            const outputKeyField = node.data.fields?.find((f: any) => f.name === 'output_key');
+            const outputKeyField = node.data.fields?.find((f: NodeField) => f.name === 'output_key');
             // Strip brackets for comparison
             const fieldValue = String(outputKeyField?.value || '').replace(/^\{|\}$/g, '');
             if (fieldValue === variableName) {
-              const updatedFields = node.data.fields?.map((f: any) => {
+              const updatedFields = node.data.fields?.map((f: NodeField) => {
                 if (f.name === 'value') {
                   return { ...f, value: newValue };
                 }
@@ -150,8 +169,8 @@ const TreeEditor: React.FC<TreeEditorProps> = ({
     
     nodes.forEach((node) => {
       if (node.data?.type === 'DeclareVariable') {
-        const outputKeyField = node.data.fields?.find((f: any) => f.name === 'output_key');
-        const valueField = node.data.fields?.find((f: any) => f.name === 'value');
+        const outputKeyField = node.data.fields?.find((f: NodeField) => f.name === 'output_key');
+        const valueField = node.data.fields?.find((f: NodeField) => f.name === 'value');
         
         if (outputKeyField && valueField) {
                     // Strip brackets from output_key for variable name
@@ -470,15 +489,15 @@ const TreeEditor: React.FC<TreeEditorProps> = ({
   }, []);
 
   const handleUpdateNodeField = useCallback(
-    (nodeId: string, fieldName: string, value: any, valueType: 'literal' | 'variable') => {
+    (nodeId: string, fieldName: string, value: string | number | boolean, valueType: 'literal' | 'variable') => {
       setNodes((prevNodes) =>
         prevNodes.map((node) => {
           if (node.id !== nodeId) return node;
 
-          const existingFields: any[] = (node.data && node.data.fields) ? [...node.data.fields] : [];
+          const existingFields: NodeField[] = (node.data && node.data.fields) ? [...node.data.fields] : [];
 
           let found = false;
-          const updatedFields = existingFields.map((f: any) => {
+          const updatedFields = existingFields.map((f: NodeField) => {
             if (f.name === fieldName) {
               found = true;
               return { ...f, value, valueType };
@@ -487,7 +506,7 @@ const TreeEditor: React.FC<TreeEditorProps> = ({
           });
 
           if (!found) {
-            updatedFields.push({ name: fieldName, value, valueType });
+            updatedFields.push({ name: fieldName, type: 'string', value, valueType });
           }
 
           return {

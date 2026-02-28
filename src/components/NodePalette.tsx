@@ -1,3 +1,21 @@
+/**
+ * NodePalette - Left-side panel with two views:
+ *
+ *   1. **Nodes view**: Searchable, filterable list of all built-in and
+ *      library-defined BT node types. Supports drag-and-drop onto the
+ *      canvas via `application/reactflow` payload.
+ *
+ *   2. **Library view**: Lists subtrees from the workspace library
+ *      (subtree_library.xml). Users can create new subtrees, import
+ *      existing tree files as subtrees, drag library entries onto the
+ *      canvas, or click to navigate to a subtree tab.
+ *
+ * Sub-components defined in this file:
+ *   - PortEditor: Inline editor for subtree input/output port definitions.
+ *   - NewSubtreeModal: Modal for creating a new subtree with ports.
+ *   - ImportTreeModal: Modal for importing a workspace XML file as a subtree.
+ */
+
 import React, { useState, useMemo } from 'react';
 import { Search, Boxes, Library, GitBranch, FolderOpen, Plus, X, ArrowDownCircle, ArrowUpCircle, FileInput } from 'lucide-react';
 import { nodeLibrary, getCategoryColor } from '../data/nodeLibrary';
@@ -30,7 +48,7 @@ const PortEditor: React.FC<PortEditorProps> = ({ ports, onPortsChange }) => {
     onPortsChange([...ports, newPort]);
   };
 
-  const updatePort = (index: number, field: keyof SubTreePort, value: any) => {
+  const updatePort = (index: number, field: keyof SubTreePort, value: string | boolean) => {
     const updated = [...ports];
     updated[index] = { ...updated[index], [field]: value };
     onPortsChange(updated);

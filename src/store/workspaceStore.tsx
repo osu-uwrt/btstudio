@@ -1,11 +1,20 @@
 /**
- * Workspace State Management
- * 
- * Manages the state of the entire workspace including:
- * - Multiple trees (main tree + subtrees) in the current file
- * - Library subtrees from subtree_library.xml
- * - Workspace folder path and file tracking
- * - Modified subtree tracking for workspace-wide saves
+ * Workspace state management (React Context + useReducer).
+ *
+ * This store is the single source of truth for:
+ *   - The workspace folder path and its XML file listing
+ *   - The active file's main tree and embedded subtrees
+ *   - The subtree library (subtree_library.xml)
+ *   - Dirty / modified tracking for save operations
+ *
+ * Consumers use `useWorkspace()` to access state and dispatch actions.
+ * Heavy side-effects (file I/O, workspace sync) live in
+ * `useWorkspaceOps.ts`, which dispatches into this store.
+ *
+ * Invariants maintained by the reducer:
+ *   - `subtrees` is always a fresh Map copy on mutation (immutable updates).
+ *   - `modifiedSubtreeIds` is cleared on save (CLEAR_MODIFIED_SUBTREES).
+ *   - Switching files (SET_ACTIVE_FILE) resets dirty state.
  */
 
 import React, { createContext, useContext, useReducer, useCallback } from 'react';

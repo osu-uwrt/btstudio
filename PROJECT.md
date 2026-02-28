@@ -9,16 +9,13 @@ btstudio/
 ├── electron/                 # Electron main process and preload
 │   ├── main.js              # IPC handlers, menus, file operations
 │   └── preload.js           # Exposes window.electronAPI to renderer
-├── public/
-│   └── index.html           # HTML entry point
 ├── src/
 │   ├── components/          # React UI components
-│   │   ├── App.tsx          # Root app component with context setup
-│   │   ├── TreeEditor.tsx   # ReactFlow canvas and tree editing logic
 │   │   ├── BTNode.tsx       # Node component (rendered in canvas)
 │   │   ├── NodePalette.tsx  # Palette with nodes and library subtrees
 │   │   ├── NodePropertiesPanel.tsx # Node field editor panel
 │   │   ├── SubTreeTabBar.tsx       # Tabs for main tree and subtrees
+│   │   ├── TreeEditor.tsx   # ReactFlow canvas and tree editing logic
 │   │   ├── VariableEditor.tsx      # Variable list and editor
 │   │   ├── WelcomeModal.tsx        # Blocking startup modal
 │   │   └── WorkspaceToolbar.tsx    # (Invisible) Electron menu listener
@@ -28,6 +25,11 @@ btstudio/
 │   │   └── useWorkspaceOps.ts # Workspace operations (open/save/create)
 │   ├── store/
 │   │   └── workspaceStore.tsx # Redux-like state management
+│   ├── test/                # Vitest test suites
+│   │   ├── fixtures/        # XML test fixtures
+│   │   ├── nodeLibrary.test.ts
+│   │   ├── workspaceStore.test.tsx
+│   │   └── xmlSerializer.test.ts
 │   ├── types/
 │   │   ├── index.ts         # Shared TypeScript types
 │   │   └── electron.d.ts    # Electron preload type definitions
@@ -38,6 +40,8 @@ btstudio/
 │   ├── index.tsx            # React entry point
 │   └── index.css            # Global styles
 ├── build/                   # Production build output (generated)
+├── index.html               # Vite HTML entry point
+├── vite.config.ts           # Vite + Vitest configuration
 ├── package.json
 ├── tsconfig.json
 ├── PROJECT.md               # This file
@@ -60,9 +64,9 @@ The renderer uses these capabilities via `window.electronAPI`:
 
 - `openFolder()`, `openFile()` - native file/folder selection dialogs
 - `readFile(path)`, `writeFile(path, content)` - file I/O
-- `showConfirm()`, `showWarning()`, `showError()` - dialog messages
-- `listFiles(path)` - directory scanning
-- `getFileStats(path)` - modification times for external change detection
+- `showConfirm()`, `showWarning()` - dialog messages
+- `listXmlFiles(path)` - directory scanning
+- `getModifiedTime(path)` - modification times for external change detection
 - `onMenuOpenWorkspace()`, `onMenuOpenTree()`, `onMenuNewTree()`, `onMenuExport()` - menu event listeners
 
 Handlers are registered in `electron/main.js` and consumed by components (primarily `WorkspaceToolbar` and `TreeEditor`).
@@ -380,14 +384,15 @@ An invisible component that registers Electron menu event listeners (`onMenuOpen
 
 ### Development
 
-- **`npm start`** - Start React dev server (usually http://localhost:3000)
-- **`npm run electron:dev`** - Concurrently run React dev server and Electron shell. Electron will automatically reload when files change.
-- **`npm test`** - Run tests (using react-scripts test)
+- **`npm run dev`** - Start Vite dev server (http://localhost:3000)
+- **`npm run electron:dev`** - Concurrently run Vite dev server and Electron shell. Electron will automatically reload when files change.
+- **`npm test`** - Run Vitest test suite
+- **`npm run test:watch`** - Run tests in watch mode
 
 ### Production
 
-- **`npm run build`** - Build React production bundle to `build/` directory
-- **`npm run electron:build`** - Build production React bundle and package as Electron installers (macOS `.dmg`, Linux `.AppImage`)
+- **`npm run build`** - Build production bundle to `build/` directory using Vite
+- **`npm run electron:build`** - Build production bundle and package as Electron installers (macOS `.dmg`, Linux `.AppImage`)
 - **`npm run electron:pack`** - Package for current platform only (no installer)
 
 ### Release process
@@ -401,7 +406,7 @@ Releases are automated via GitHub Actions when a version tag is pushed:
 
 See `package.json` build config for platform-specific details (code signing, target architectures, etc.).
 
-**Important**: Auto-update is configured in `electron/main.js` using `electron-updater` and points to GitHub releases.
+**Important**: Auto-update has been removed. Release distribution is manual via GitHub releases.
 
 ## Developer quick reference
 
@@ -521,14 +526,15 @@ History limit is `HISTORY_LIMIT = 20` (configurable).
 
 Shortcuts are registered in `TreeEditor.tsx` via `useEffect` and window event listeners.
 
-### Testing patterns
+### Testing
 
-The app has no automated test suite. For manual testing:
+The app uses Vitest with jsdom for unit testing. Test suites are in `src/test/`:
 
-1. **Tree import/export**: Modify an XML file, open it, save it, check the file contents
-2. **Workspace sync**: Edit a subtree in one file, save it, open another file that references it—the library version should appear
-3. **Variable sync**: Add a variable, edit its value, verify DeclareVariable nodes update
-4. **External changes**: Modify `subtree_library.xml` externally, reload the app, check for warning dialog
+- **`xmlSerializer.test.ts`** (35 tests) - XML import/export round-trip, subtree library, port handling, variable extraction
+- **`workspaceStore.test.tsx`** (15 tests) - Workspace state management, reducer actions, dirty tracking
+- **`nodeLibrary.test.ts`** (26 tests) - Node definitions, category colors, type inference, definition lookup
+
+Run with `npm test`. Fixtures are in `src/test/fixtures/xmlFixtures.ts`.
 
 ### Common debugging
 

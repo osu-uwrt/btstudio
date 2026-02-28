@@ -1,3 +1,12 @@
+/**
+ * VariableEditor Component
+ *
+ * Panel for managing blackboard variables (add / edit value / delete).
+ * Each variable maps to a `DeclareVariable` node on the canvas.
+ * Editing a value here propagates via `onUpdateDeclareVariableNode` so the
+ * corresponding BT node stays in sync.
+ */
+
 import React, { useState } from 'react';
 import { Plus, Trash2, Edit2 } from 'lucide-react';
 import { Variable } from '../types';
