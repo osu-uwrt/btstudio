@@ -37,6 +37,8 @@ import {
   EMPTY_TREE_XML,
   DECLARE_VARIABLE_TREE_XML,
   SPECIAL_CHARS_XML,
+  SUBTREE_LIBRARY_WITH_COLORS_XML,
+  MULTI_TREE_WITH_COLOR_XML,
 } from './fixtures/xmlFixtures';
 
 // ---------------------------------------------------------------------------
@@ -599,5 +601,116 @@ describe('edge cases', () => {
     expect(xml).toContain('<?xml version="1.0"?>');
     expect(xml).toContain('<root BTCPP_format="4"');
     expect(xml).toContain('</root>');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Tests: Subtree Color Support
+// ---------------------------------------------------------------------------
+
+describe('subtree color support', () => {
+  it('imports color from BTstudio:color comment in library XML', () => {
+    const subtrees = importSubtreeLibraryFromXML(SUBTREE_LIBRARY_WITH_COLORS_XML);
+
+    const checkBattery = subtrees.get('CheckBattery');
+    expect(checkBattery).toBeDefined();
+    expect(checkBattery?.color).toBe('#FF5722');
+
+    // Navigate has no color comment
+    const navigate = subtrees.get('Navigate');
+    expect(navigate).toBeDefined();
+    expect(navigate?.color).toBeUndefined();
+  });
+
+  it('imports color from BTstudio:color comment in multi-tree XML', () => {
+    const result = importMultiTreeFromXML(MULTI_TREE_WITH_COLOR_XML);
+
+    const checkBattery = result.subtrees.get('CheckBattery');
+    expect(checkBattery).toBeDefined();
+    expect(checkBattery?.color).toBe('#E91E63');
+
+    // Main tree should not have a color
+    expect(result.mainTree.color).toBeUndefined();
+  });
+
+  it('exports color as BTstudio:color comment in multi-tree XML', () => {
+    const mainTree: TreeData = {
+      id: 'Main',
+      nodes: [makeRootNode()],
+      edges: [],
+      variables: [],
+    };
+
+    const subtrees = new Map<string, TreeData>();
+    subtrees.set('ColoredSub', {
+      id: 'ColoredSub',
+      nodes: [makeRootNode('cs_root')],
+      edges: [],
+      variables: [],
+      description: 'A colored subtree',
+      color: '#9C27B0',
+    });
+    subtrees.set('PlainSub', {
+      id: 'PlainSub',
+      nodes: [makeRootNode('ps_root')],
+      edges: [],
+      variables: [],
+    });
+
+    const xml = exportMultiTreeToXML(mainTree, subtrees);
+
+    // Colored subtree should have the meta comment
+    expect(xml).toContain('<!-- BTstudio:color=#9C27B0 -->');
+    // Description should also be present
+    expect(xml).toContain('<!-- A colored subtree -->');
+    // PlainSub should NOT have a color comment
+    const plainSubIdx = xml.indexOf('ID="PlainSub"');
+    const colorCommentBeforePlain = xml.lastIndexOf('BTstudio:color=', plainSubIdx);
+    // The color comment should belong to ColoredSub, not PlainSub
+    if (colorCommentBeforePlain !== -1) {
+      const textBetween = xml.substring(colorCommentBeforePlain, plainSubIdx);
+      expect(textBetween).toContain('ID="ColoredSub"');
+    }
+  });
+
+  it('exports color in subtree library XML', () => {
+    const subtrees = new Map<string, TreeData>();
+    subtrees.set('MySub', {
+      id: 'MySub',
+      nodes: [makeRootNode('ms_root')],
+      edges: [],
+      variables: [],
+      color: '#FF9800',
+    });
+
+    const xml = exportSubtreeLibraryToXML(subtrees);
+    expect(xml).toContain('<!-- BTstudio:color=#FF9800 -->');
+  });
+
+  it('round-trips subtree color through library export/import', () => {
+    const subtrees = new Map<string, TreeData>();
+    subtrees.set('RoundTripSub', {
+      id: 'RoundTripSub',
+      nodes: [makeRootNode('rt_root')],
+      edges: [],
+      variables: [],
+      description: 'Round trip test',
+      color: '#3F51B5',
+    });
+
+    const xml = exportSubtreeLibraryToXML(subtrees);
+    const reimported = importSubtreeLibraryFromXML(xml);
+
+    const sub = reimported.get('RoundTripSub');
+    expect(sub).toBeDefined();
+    expect(sub?.color).toBe('#3F51B5');
+    expect(sub?.description).toBe('Round trip test');
+  });
+
+  it('does not set color on description comment (no false positive)', () => {
+    // Verify that a plain description comment is not mistaken for a color
+    const subtrees = importSubtreeLibraryFromXML(SUBTREE_LIBRARY_XML);
+    const checkBattery = subtrees.get('CheckBattery');
+    expect(checkBattery?.color).toBeUndefined();
   });
 });

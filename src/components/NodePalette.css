@@ -723,3 +723,64 @@
   font-weight: bold;
   margin-left: 1px;
 }
+
+/* ── Color picker in New Subtree modal ──────────────────────────── */
+
+.color-section {
+  margin-top: 12px;
+}
+
+.color-toggle-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  color: #ccc;
+  user-select: none;
+}
+
+.color-toggle-label input[type="checkbox"] {
+  accent-color: #0078d4;
+}
+
+.color-picker-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.color-picker-input {
+  width: 36px;
+  height: 36px;
+  border: 1px solid #555;
+  border-radius: 4px;
+  padding: 2px;
+  background: transparent;
+  cursor: pointer;
+}
+
+.color-hex-input {
+  width: 90px;
+  background: #2d2d2d;
+  border: 1px solid #444;
+  border-radius: 4px;
+  color: #fff;
+  padding: 6px 8px;
+  font-size: 13px;
+  font-family: monospace;
+}
+
+.color-hex-input:focus {
+  border-color: #0078d4;
+  outline: none;
+}
+
+.color-preview {
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  border: 1px solid #555;
+  flex-shrink: 0;
+}

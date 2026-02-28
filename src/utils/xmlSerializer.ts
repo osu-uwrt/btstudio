@@ -47,6 +47,8 @@ export interface TreeData {
   description?: string;
   /** Input/output ports for subtrees. */
   ports?: SubTreePort[];
+  /** Optional custom color for subtree display (stored as an XML comment). */
+  color?: string;
 }
 
 /** Sentinel ID that BehaviorTree.cpp uses for its main tree attribute. */
@@ -199,6 +201,7 @@ export function importMultiTreeFromXML(xmlString: string): MultiTreeParseResult 
   }
 
   const descriptionMap = buildDescriptionMap(root);
+  const colorMap = buildColorMap(root);
   const subtrees = new Map<string, TreeData>();
   const treeOrder: string[] = [];
   let mainTree: TreeData | null = null;
@@ -206,6 +209,7 @@ export function importMultiTreeFromXML(xmlString: string): MultiTreeParseResult 
   behaviorTrees.forEach((btElement, index) => {
     const treeId = btElement.getAttribute('ID') || `Tree_${index}`;
     const description = descriptionMap.get(treeId) || btElement.getAttribute('description') || undefined;
+    const color = colorMap.get(treeId) || undefined;
     treeOrder.push(treeId);
 
     const isMainTree =
@@ -213,7 +217,7 @@ export function importMultiTreeFromXML(xmlString: string): MultiTreeParseResult 
       (!mainTreeId && index === 0) ||
       treeId === MAIN_TREE_ID;
 
-    const treeData = parseBehaviorTreeElement(btElement, treeId, description);
+    const treeData = parseBehaviorTreeElement(btElement, treeId, description, color);
 
     if (isMainTree && !mainTree) {
       mainTree = treeData;
@@ -250,13 +254,15 @@ export function importSubtreeLibraryFromXML(xmlString: string): Map<string, Tree
   if (!root) return new Map();
 
   const descriptionMap = buildDescriptionMap(root);
+  const colorMap = buildColorMap(root);
   const behaviorTrees = root.querySelectorAll('BehaviorTree');
   const subtrees = new Map<string, TreeData>();
 
   behaviorTrees.forEach((btElement, index) => {
     const treeId = btElement.getAttribute('ID') || `SubTree_${index}`;
     const description = descriptionMap.get(treeId) || btElement.getAttribute('description') || undefined;
-    const treeData = parseBehaviorTreeElement(btElement, treeId, description);
+    const color = colorMap.get(treeId) || undefined;
+    const treeData = parseBehaviorTreeElement(btElement, treeId, description, color);
     subtrees.set(treeId, treeData);
   });
 
@@ -341,13 +347,17 @@ export function updateSubtreeInXML(
 // ═══════════════════════════════════════════════════════════════════════════
 
 /**
- * Serialize a single `<BehaviorTree>` element (description comment + body).
+ * Serialize a single `<BehaviorTree>` element (description comment + color comment + body).
  */
 function serializeBehaviorTree(tree: TreeData): string {
   let xml = '';
 
   if (tree.description) {
     xml += `  <!-- ${escapeXML(tree.description)} -->\n`;
+  }
+
+  if (tree.color) {
+    xml += `  <!-- BTstudio:color=${escapeXML(tree.color)} -->\n`;
   }
 
   xml += `  <BehaviorTree ID="${escapeXML(tree.id)}">\n`;
@@ -552,27 +562,62 @@ function parseAndValidateRoot(xmlString: string): Element {
 
 /**
  * Walk the children of `<root>` and map each `<BehaviorTree>` to the
- * preceding XML comment (if any), ignoring generator comments.
+ * preceding XML comments (if any), extracting description and BTstudio metadata.
  *
- * This is used to recover subtree descriptions that are stored as XML
- * comments rather than attributes.
+ * This is used to recover subtree descriptions and custom colors that are
+ * stored as XML comments rather than attributes.
  */
 function buildDescriptionMap(root: Element): Map<string, string> {
   const map = new Map<string, string>();
-  let currentComment: string | null = null;
+  let currentDescription: string | null = null;
 
   // nodeType 8 = COMMENT_NODE, 1 = ELEMENT_NODE
   root.childNodes.forEach((child) => {
     if (child.nodeType === 8) {
-      currentComment = (child.textContent ?? '').trim();
+      const text = (child.textContent ?? '').trim();
+      // Only track user description comments (skip generated and BTstudio meta)
+      if (!isGeneratedComment(text) && !isBTstudioMetaComment(text)) {
+        currentDescription = text;
+      }
     } else if (child.nodeType === 1 && (child as Element).tagName === 'BehaviorTree') {
       const treeId = (child as Element).getAttribute('ID');
-      if (treeId && currentComment && !isGeneratedComment(currentComment)) {
-        map.set(treeId, currentComment);
+      if (treeId && currentDescription) {
+        map.set(treeId, currentDescription);
       }
-      currentComment = null;
+      currentDescription = null;
     } else if (child.nodeType === 1) {
-      currentComment = null;
+      currentDescription = null;
+    }
+  });
+
+  return map;
+}
+
+/**
+ * Walk the children of `<root>` and extract BTstudio metadata comments
+ * (e.g., `BTstudio:color=#FF5722`) preceding each `<BehaviorTree>` element.
+ *
+ * Returns a map from tree ID to color hex string.
+ */
+function buildColorMap(root: Element): Map<string, string> {
+  const map = new Map<string, string>();
+  const pendingColors: string[] = [];
+
+  root.childNodes.forEach((child) => {
+    if (child.nodeType === 8) {
+      const text = (child.textContent ?? '').trim();
+      const colorMatch = text.match(/^BTstudio:color=(.+)$/);
+      if (colorMatch) {
+        pendingColors.push(colorMatch[1]);
+      }
+    } else if (child.nodeType === 1 && (child as Element).tagName === 'BehaviorTree') {
+      const treeId = (child as Element).getAttribute('ID');
+      if (treeId && pendingColors.length > 0) {
+        map.set(treeId, pendingColors[pendingColors.length - 1]);
+      }
+      pendingColors.length = 0;
+    } else if (child.nodeType === 1) {
+      pendingColors.length = 0;
     }
   });
 
@@ -589,6 +634,11 @@ function isGeneratedComment(text: string): boolean {
   );
 }
 
+/** Returns true for BTstudio metadata comments (e.g., color). */
+function isBTstudioMetaComment(text: string): boolean {
+  return text.startsWith('BTstudio:');
+}
+
 /**
  * Parse a single `<BehaviorTree>` element into a TreeData object.
  */
@@ -596,6 +646,7 @@ function parseBehaviorTreeElement(
   btElement: Element,
   treeId: string,
   description: string | undefined,
+  color: string | undefined,
 ): TreeData {
   const variables: Variable[] = [];
   const firstSetBlackboardPerVariable = new Map<string, Element>();
@@ -604,7 +655,7 @@ function parseBehaviorTreeElement(
   collectSetBlackboardNodes(btElement, firstSetBlackboardPerVariable);
 
   const { nodes, edges } = parseTreeStructure(btElement, variables, firstSetBlackboardPerVariable);
-  return { id: treeId, nodes, edges, variables, description };
+  return { id: treeId, nodes, edges, variables, description, color };
 }
 
 /**

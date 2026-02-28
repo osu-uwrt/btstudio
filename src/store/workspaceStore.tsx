@@ -151,7 +151,7 @@ function workspaceReducer(state: WorkspaceState, action: WorkspaceAction): Works
           isDirty: true,
         };
       } else {
-        // Update subtree - preserve description and ports
+        // Update subtree - preserve description, ports, and color
         const newSubtrees = new Map(state.subtrees);
         const existingSubtree = newSubtrees.get(treeId);
         newSubtrees.set(treeId, {
@@ -161,6 +161,7 @@ function workspaceReducer(state: WorkspaceState, action: WorkspaceAction): Works
           variables: existingSubtree?.variables || variables,
           description: existingSubtree?.description,
           ports: existingSubtree?.ports,
+          color: existingSubtree?.color,
         });
         
         const newModified = new Set(state.modifiedSubtreeIds);
@@ -189,7 +190,7 @@ function workspaceReducer(state: WorkspaceState, action: WorkspaceAction): Works
       const librarySubtree = state.librarySubtrees.get(action.subtreeId);
       if (!librarySubtree) return state;
       
-      // Deep copy the subtree data including ports
+      // Deep copy the subtree data including ports and color
       const subtreeCopy: TreeData = {
         id: librarySubtree.id,
         nodes: JSON.parse(JSON.stringify(librarySubtree.nodes)),
@@ -197,6 +198,7 @@ function workspaceReducer(state: WorkspaceState, action: WorkspaceAction): Works
         variables: [...librarySubtree.variables],
         description: librarySubtree.description,
         ports: librarySubtree.ports ? [...librarySubtree.ports] : undefined,
+        color: librarySubtree.color,
       };
       
       const newSubtrees = new Map(state.subtrees);

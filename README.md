@@ -54,7 +54,7 @@ npm run build
 npm test
 ```
 
-Runs the Vitest test suite (XML serializer, workspace store, node library). Use `npm run test:watch` for watch mode.
+Runs the Vitest test suite (XML serializer, workspace store, node library, selection helpers). Use `npm run test:watch` for watch mode.
 
 ## Basic usage
 
@@ -74,7 +74,8 @@ Runs the Vitest test suite (XML serializer, workspace store, node library). Use 
 
 ### Work with subtrees
 - Switch to the Subtree Library tab in the palette to view and create subtrees.
-- Drag a subtree onto the canvas to insert it into the active tree.
+- When creating a subtree, optionally pick a custom color. The color is stored as an XML comment (`<!-- BTstudio:color=#HEXCODE -->`) so it does not interfere with BehaviorTree.cpp.
+- Drag a subtree onto the canvas to insert it into the active tree. Subtrees with a custom color display that color in both the palette and the canvas.
 - Click a subtree in the library to edit it.
 
 ### Save
@@ -129,11 +130,20 @@ Runs the Vitest test suite (XML serializer, workspace store, node library). Use 
 - **Delete**: Select node and press Delete key
 - **Deselect**: Click on background
 
+### Box select
+- **Toggle**: Click the BoxSelect button in the canvas toolbar, press Cmd/Ctrl+B, or hold Shift while dragging.
+- **Copy**: Cmd/Ctrl+C copies selected nodes and edges fully contained within the selection.
+- **Paste**: Cmd/Ctrl+V pastes the clipboard with an offset. The clipboard persists across subtree tabs within the current workspace session.
+- **Delete**: Delete or Backspace removes selected nodes (the root node is always protected) and their connected edges.
+
 ### Keyboard shortcuts
 - Save: Cmd+S / Ctrl+S
 - Undo: Cmd+Z / Ctrl+Z
 - Redo: Cmd+Shift+Z / Ctrl+Shift+Z
-- Delete: Delete key (removes selected node)
+- Toggle box select: Cmd+B / Ctrl+B
+- Copy selection: Cmd+C / Ctrl+C
+- Paste selection: Cmd+V / Ctrl+V
+- Delete selection: Delete or Backspace
 - Restart: Cmd+R / Ctrl+R (reloads window and closes file without saving)
 
 ## Node categories

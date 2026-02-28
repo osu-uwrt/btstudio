@@ -30,16 +30,29 @@ import ReactFlow, {
   Panel,
   NodeChange,
   ReactFlowInstance,
+  SelectionMode,
+  OnSelectionChangeParams,
 } from 'reactflow';
 import 'reactflow/dist/style.css';
+import { BoxSelect, Copy, ClipboardPaste, Trash2 } from 'lucide-react';
 import { BTNodeDefinition, NodeField, Variable } from '../types';
 import { getCategoryColor, nodeLibrary } from '../data/nodeLibrary';
 import { exportToXML, exportMultiTreeToXML } from '../utils/xmlSerializer';
+import {
+  getContainedEdges,
+  buildPastedNodes,
+  remapEdges,
+  getDeleteableNodeIds,
+  ClipboardData,
+} from '../utils/selectionHelpers';
 import { useWorkspace } from '../store/workspaceStore';
 import { useWorkspaceOps } from '../hooks/useWorkspaceOps';
 import BTNode from './BTNode';
 import NodePropertiesPanel from './NodePropertiesPanel';
 import './TreeEditor.css';
+
+/** Module-level clipboard so it persists across subtree tab switches. */
+let canvasClipboard: ClipboardData | null = null;
 
 interface TreeEditorProps {
   variables: Variable[];
@@ -73,10 +86,30 @@ const TreeEditor: React.FC<TreeEditorProps> = ({
   const [lastImportedFile, setLastImportedFile] = useState<string>('behavior_tree.xml');
   const [isSessionChecked, setIsSessionChecked] = useState(false);
 
+  // Box-select mode
+  const [boxSelectMode, setBoxSelectMode] = useState(false);
+  const selectedNodesRef = useRef<Node[]>([]);
+  const selectedEdgesRef = useRef<Edge[]>([]);
+
   // Workspace integration
   const { state: workspaceState, dispatch: workspaceDispatch, activeTree } = useWorkspace();
   const { saveWorkspace, isElectron } = useWorkspaceOps();
   const isLoadingFromWorkspaceRef = useRef(false);
+
+  /**
+   * Determine the display color for a node definition.
+   * Subtree nodes use their custom color (from library/file) if available,
+   * otherwise fall back to the category default.
+   */
+  const getSubtreeColor = useCallback((nodeDef: BTNodeDefinition): string => {
+    if (nodeDef.category === 'subtree' && nodeDef.subtreeId) {
+      const libColor = workspaceState.librarySubtrees.get(nodeDef.subtreeId)?.color;
+      if (libColor) return libColor;
+      const fileColor = workspaceState.subtrees.get(nodeDef.subtreeId)?.color;
+      if (fileColor) return fileColor;
+    }
+    return getCategoryColor(nodeDef.category);
+  }, [workspaceState.librarySubtrees, workspaceState.subtrees]);
 
   // Initialize with root node on first load
   const hasInitializedRef = useRef(false);
@@ -378,7 +411,116 @@ const TreeEditor: React.FC<TreeEditorProps> = ({
     return () => window.removeEventListener('keydown', handler);
   }, [undo, redo]);
 
-  
+  // ─── Selection tracking (for box-select copy/paste/delete) ────────────
+  const onSelectionChange = useCallback(({ nodes: selNodes, edges: selEdges }: OnSelectionChangeParams) => {
+    selectedNodesRef.current = selNodes;
+    selectedEdgesRef.current = selEdges;
+  }, []);
+
+  /** Copy selected nodes and their contained edges to the clipboard. */
+  const copySelection = useCallback(() => {
+    const selNodes = selectedNodesRef.current;
+    if (selNodes.length === 0) return;
+
+    const selectedIds = new Set(selNodes.map(n => n.id));
+    const contained = getContainedEdges(selectedIds, edges);
+
+    canvasClipboard = {
+      nodes: JSON.parse(JSON.stringify(selNodes)),
+      edges: JSON.parse(JSON.stringify(contained)),
+    };
+  }, [edges]);
+
+  /** Paste nodes from the clipboard, offsetting positions. */
+  const pasteSelection = useCallback(() => {
+    if (!canvasClipboard || canvasClipboard.nodes.length === 0) return;
+
+    const { nodes: pastedNodes, idMap } = buildPastedNodes(canvasClipboard.nodes, Date.now());
+    const pastedEdges = remapEdges(canvasClipboard.edges, idMap);
+
+    // Deselect existing nodes before adding pasted ones
+    setNodes(nds => [
+      ...nds.map(n => ({ ...n, selected: false })),
+      ...pastedNodes,
+    ]);
+    setEdges(eds => [...eds, ...pastedEdges]);
+  }, [setNodes, setEdges]);
+
+  /** Delete selected nodes and their contained edges. */
+  const deleteSelection = useCallback(() => {
+    const selNodes = selectedNodesRef.current;
+    if (selNodes.length === 0) return;
+
+    const toDelete = getDeleteableNodeIds(new Set(selNodes.map(n => n.id)));
+    if (toDelete.size === 0) return;
+
+    // Remove selected nodes
+    setNodes(nds => nds.filter(n => !toDelete.has(n.id)));
+    // Remove edges where either endpoint was deleted
+    setEdges(eds => eds.filter(e => !toDelete.has(e.source) && !toDelete.has(e.target)));
+  }, [setNodes, setEdges]);
+
+  /** Toggle box-select mode on/off. */
+  const toggleBoxSelect = useCallback(() => {
+    setBoxSelectMode(prev => !prev);
+  }, []);
+
+  // Keyboard shortcuts for copy/paste/delete and box-select toggle
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      const isMod = e.ctrlKey || e.metaKey;
+
+      // Shift+B: toggle box-select mode
+      if (e.key.toLowerCase() === 'b' && isMod) {
+        e.preventDefault();
+        toggleBoxSelect();
+        return;
+      }
+
+      // Copy: Ctrl/Cmd+C (only when nodes are selected)
+      if (isMod && e.key.toLowerCase() === 'c' && selectedNodesRef.current.length > 0) {
+        e.preventDefault();
+        copySelection();
+        return;
+      }
+
+      // Paste: Ctrl/Cmd+V
+      if (isMod && e.key.toLowerCase() === 'v' && canvasClipboard) {
+        e.preventDefault();
+        pasteSelection();
+        return;
+      }
+
+      // Delete/Backspace: delete selected nodes
+      if ((e.key === 'Delete' || e.key === 'Backspace') && selectedNodesRef.current.length > 0) {
+        // Don't intercept if the user is typing in an input
+        const tag = (e.target as HTMLElement)?.tagName?.toLowerCase();
+        if (tag === 'input' || tag === 'textarea' || tag === 'select') return;
+        e.preventDefault();
+        deleteSelection();
+        return;
+      }
+    };
+
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [toggleBoxSelect, copySelection, pasteSelection, deleteSelection]);
+
+  // Activate box-select mode while Shift is held
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Shift') setBoxSelectMode(true);
+    };
+    const onKeyUp = (e: KeyboardEvent) => {
+      if (e.key === 'Shift') setBoxSelectMode(false);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    window.addEventListener('keyup', onKeyUp);
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('keyup', onKeyUp);
+    };
+  }, []);
 
 
   const onConnect = useCallback(
@@ -471,7 +613,7 @@ const TreeEditor: React.FC<TreeEditorProps> = ({
           ...cleanNodeDef,
           fields: nodeFields,
           instanceId: `${cleanNodeDef.type}_${Date.now()}`,
-          color: getCategoryColor(cleanNodeDef.category),
+          color: getSubtreeColor(cleanNodeDef),
         },
       };
 
@@ -674,10 +816,50 @@ const TreeEditor: React.FC<TreeEditorProps> = ({
         onPaneClick={onPaneClick}
         nodeTypes={nodeTypes}
         connectionMode={ConnectionMode.Loose}
+        selectionOnDrag={boxSelectMode}
+        selectionMode={SelectionMode.Partial}
+        panOnDrag={!boxSelectMode}
+        onSelectionChange={onSelectionChange}
         fitView
       >
         <Background />
         <Controls />
+
+        {/* Box-select toolbar */}
+        <Panel position="top-right" className="box-select-panel">
+          <button
+            className={`box-select-btn ${boxSelectMode ? 'active' : ''}`}
+            onClick={toggleBoxSelect}
+            title="Toggle box select (hold Shift or Ctrl/Cmd+B)"
+          >
+            <BoxSelect size={16} />
+          </button>
+          <button
+            className="box-select-action-btn"
+            onClick={copySelection}
+            title="Copy selection (Ctrl/Cmd+C)"
+            disabled={selectedNodesRef.current.length === 0}
+          >
+            <Copy size={14} />
+          </button>
+          <button
+            className="box-select-action-btn"
+            onClick={pasteSelection}
+            title="Paste (Ctrl/Cmd+V)"
+            disabled={!canvasClipboard}
+          >
+            <ClipboardPaste size={14} />
+          </button>
+          <button
+            className="box-select-action-btn danger"
+            onClick={deleteSelection}
+            title="Delete selection (Delete/Backspace)"
+            disabled={selectedNodesRef.current.length === 0}
+          >
+            <Trash2 size={14} />
+          </button>
+        </Panel>
+
         {/* Show current tree indicator when in Electron */}
         {isElectron && workspaceState.activeTreeId !== null && (
           <Panel position="top-center" className="tree-indicator-panel">

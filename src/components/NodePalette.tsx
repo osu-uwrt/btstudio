@@ -17,7 +17,7 @@
  */
 
 import React, { useState, useMemo } from 'react';
-import { Search, Boxes, Library, GitBranch, FolderOpen, Plus, X, ArrowDownCircle, ArrowUpCircle, FileInput } from 'lucide-react';
+import { Search, Boxes, Library, GitBranch, FolderOpen, Plus, X, ArrowDownCircle, ArrowUpCircle, FileInput, Palette } from 'lucide-react';
 import { nodeLibrary, getCategoryColor } from '../data/nodeLibrary';
 import { BTNodeDefinition, SubTreePort } from '../types';
 import { useWorkspace } from '../store/workspaceStore';
@@ -171,22 +171,28 @@ const PortEditor: React.FC<PortEditorProps> = ({ ports, onPortsChange }) => {
 interface NewSubtreeModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onCreate: (name: string, description: string, ports: SubTreePort[]) => void;
+  onCreate: (name: string, description: string, ports: SubTreePort[], color?: string) => void;
 }
+
+const DEFAULT_SUBTREE_COLOR = '#00BCD4';
 
 const NewSubtreeModal: React.FC<NewSubtreeModalProps> = ({ isOpen, onClose, onCreate }) => {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [ports, setPorts] = useState<SubTreePort[]>([]);
+  const [color, setColor] = useState(DEFAULT_SUBTREE_COLOR);
+  const [useCustomColor, setUseCustomColor] = useState(false);
 
   const handleCreate = () => {
     if (name.trim()) {
       // Filter out ports with empty names
       const validPorts = ports.filter(p => p.name.trim());
-      onCreate(name.trim(), description.trim(), validPorts);
+      onCreate(name.trim(), description.trim(), validPorts, useCustomColor ? color : undefined);
       setName('');
       setDescription('');
       setPorts([]);
+      setColor(DEFAULT_SUBTREE_COLOR);
+      setUseCustomColor(false);
       onClose();
     }
   };
@@ -226,6 +232,40 @@ const NewSubtreeModal: React.FC<NewSubtreeModalProps> = ({ isOpen, onClose, onCr
           <h4>Ports (Input/Output Parameters)</h4>
           <p className="ports-hint">Define ports to pass data in and out of this subtree. Blackboard is not shared.</p>
           <PortEditor ports={ports} onPortsChange={setPorts} />
+        </div>
+
+        <div className="color-section">
+          <label className="color-toggle-label">
+            <input
+              type="checkbox"
+              checked={useCustomColor}
+              onChange={(e) => setUseCustomColor(e.target.checked)}
+            />
+            <Palette size={14} />
+            Custom color
+          </label>
+          {useCustomColor && (
+            <div className="color-picker-row">
+              <input
+                type="color"
+                value={color}
+                onChange={(e) => setColor(e.target.value)}
+                className="color-picker-input"
+              />
+              <input
+                type="text"
+                value={color}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (/^#[0-9A-Fa-f]{0,6}$/.test(val)) setColor(val);
+                }}
+                placeholder="#00BCD4"
+                className="color-hex-input"
+                maxLength={7}
+              />
+              <div className="color-preview" style={{ backgroundColor: color }} />
+            </div>
+          )}
         </div>
         
         <div className="modal-buttons">
@@ -372,6 +412,18 @@ const NodePalette: React.FC<NodePaletteProps> = ({ onNodeSelect }) => {
     return nodes;
   }, [state.librarySubtrees]);
 
+  // Map subtree IDs to custom colors from library or file subtrees
+  const subtreeColorMap = useMemo((): Map<string, string> => {
+    const map = new Map<string, string>();
+    state.librarySubtrees.forEach((treeData, subtreeId) => {
+      if (treeData.color) map.set(subtreeId, treeData.color);
+    });
+    state.subtrees.forEach((treeData, subtreeId) => {
+      if (treeData.color) map.set(subtreeId, treeData.color);
+    });
+    return map;
+  }, [state.librarySubtrees, state.subtrees]);
+
   // Combine static library with dynamic library subtrees for the nodes view
   const combinedNodeLibrary = useMemo(() => {
     return [...nodeLibrary, ...librarySubtreeNodes];
@@ -484,27 +536,32 @@ const NodePalette: React.FC<NodePaletteProps> = ({ onNodeSelect }) => {
       {/* Nodes view */}
       {paletteView === 'nodes' && (
         <div className="nodes-list">
-          {filteredNodes.map(node => (
-            <div
-              key={node.id}
-              className="node-item"
-              draggable
-              onDragStart={(e) => handleDragStart(e, node)}
-              onClick={() => onNodeSelect(node)}
-              style={{ borderLeftColor: getCategoryColor(node.category) }}
-            >
-              <div className="node-item-header">
-                <span className="node-name">{node.name}</span>
-                <span 
-                  className="node-category"
-                  style={{ backgroundColor: getCategoryColor(node.category) }}
-                >
-                  {node.category}
-                </span>
+          {filteredNodes.map(node => {
+            const nodeColor = (node.category === 'subtree' && node.subtreeId)
+              ? (subtreeColorMap.get(node.subtreeId) || getCategoryColor(node.category))
+              : getCategoryColor(node.category);
+            return (
+              <div
+                key={node.id}
+                className="node-item"
+                draggable
+                onDragStart={(e) => handleDragStart(e, node)}
+                onClick={() => onNodeSelect(node)}
+                style={{ borderLeftColor: nodeColor }}
+              >
+                <div className="node-item-header">
+                  <span className="node-name">{node.name}</span>
+                  <span 
+                    className="node-category"
+                    style={{ backgroundColor: nodeColor }}
+                  >
+                    {node.category}
+                  </span>
+                </div>
+                <div className="node-description">{node.description}</div>
               </div>
-              <div className="node-description">{node.description}</div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
@@ -550,8 +607,9 @@ const NodePalette: React.FC<NodePaletteProps> = ({ onNodeSelect }) => {
                         draggable
                         onDragStart={(e) => handleLibrarySubtreeDragStart(e, subtreeId)}
                         onClick={() => handleLibrarySubtreeClick(subtreeId)}
+                        style={treeData.color ? { borderLeftColor: treeData.color } : undefined}
                       >
-                        <GitBranch size={16} className="library-item-icon" />
+                        <GitBranch size={16} className="library-item-icon" style={treeData.color ? { color: treeData.color } : undefined} />
                         <div className="library-item-info">
                           <span className="library-item-name">{subtreeId}</span>
                           {treeData.description && (
