@@ -112,3 +112,8 @@
 .editing-subtree-label strong {
   font-weight: 600;
 }
+
+/* Hide React Flow attribution badge (logo/link) in the editor */
+.tree-editor .react-flow__attribution {
+  display: none !important;
+}
