@@ -1,6 +1,6 @@
 # BehaviorTree Studio - Project Documentation
 
-This document describes the architecture, data flow, and implementation details for developers contributing to BehaviorTree Studio. The application is a visual editor for BehaviorTree.cpp v4, built with Electron, React, TypeScript, and ReactFlow.
+This document describes the architecture, data flow, and implementation details for developers contributing to BehaviorTree Studio. The application is a visual editor for BehaviorTree.cpp v4, built with Electron, React, TypeScript, and @xyflow/react.
 
 ## Repository structure
 
@@ -15,7 +15,7 @@ btstudio/
 │   │   ├── NodePalette.tsx  # Palette with nodes and library subtrees
 │   │   ├── NodePropertiesPanel.tsx # Node field editor panel
 │   │   ├── SubTreeTabBar.tsx       # Tabs for main tree and subtrees
-│   │   ├── TreeEditor.tsx   # ReactFlow canvas and tree editing logic
+│   │   ├── TreeEditor.tsx   # @xyflow/react canvas and tree editing logic
 │   │   ├── VariableEditor.tsx      # Variable list and editor
 │   │   ├── WelcomeModal.tsx        # Blocking startup modal
 │   │   └── WorkspaceToolbar.tsx    # (Invisible) Electron menu listener
@@ -86,8 +86,8 @@ Export Tree (developer notes)
 ```typescript
 interface TreeData {
   id: string;                      // Tree ID (e.g., "MainTree", "NavigationSubtree")
-  nodes: Node[];                   // ReactFlow nodes
-  edges: Edge[];                   // ReactFlow edges
+  nodes: Node[];                   // @xyflow/react nodes
+  edges: Edge[];                   // @xyflow/react edges
   variables: Variable[];           // Local variables in this tree
   description?: string;            // Optional subtree description (stored as XML comment)
   ports?: SubTreePort[];           // Input/output port definitions for subtrees
@@ -98,7 +98,7 @@ The `id` field is:
 - For main tree: the filename's stem (e.g., "NavigationTree" from "NavigationTree.xml")
 - For subtrees: any unique string (e.g., "CheckGoal", "MoveRobot")
 
-### Node shape (ReactFlow)
+### Node shape (@xyflow/react)
 
 Nodes have this structure in the canvas:
 
@@ -120,7 +120,7 @@ interface Node {
 }
 ```
 
-All BT node types use the same ReactFlow node type (`'btNode'`) and are differentiated by `data.category` and `data.type`.
+All BT node types use the same @xyflow/react node type (`'btNode'`) and are differentiated by `data.category` and `data.type`.
 
 ### Node fields
 
@@ -285,9 +285,9 @@ The app uses React Context API to share workspace state and provides callback re
 
 ### TreeEditor.tsx
 
-The main canvas using ReactFlow. Responsibilities:
+The main canvas using @xyflow/react. Responsibilities:
 
-- **Node and edge management**: Maintains ReactFlow state (`useNodesState`, `useEdgesState`)
+- **Node and edge management**: Maintains @xyflow/react state (`useNodesState`, `useEdgesState`)
 - **Connection rules**: Enforces single-input edges per node; control nodes allow multiple outputs, others max one
 - **History/undo-redo**: Maintains `historyPast` and `historyFuture` stacks; uses `isTimeTravelRef` to avoid recording during undo/redo
 - **XML import/export**: Handles `Cmd+S`/`Ctrl+S` saves and menu-triggered exports
@@ -297,7 +297,7 @@ The main canvas using ReactFlow. Responsibilities:
 - **Session persistence**: Stores tree state in `sessionStorage` per tab ID to survive reloads
 
 Key methods:
-- `onNodesChange` / `onEdgesChange` - ReactFlow change handlers
+- `onNodesChange` / `onEdgesChange` - @xyflow/react change handlers
 - `onConnect` - Custom connection validation
 - `onDrop` - Creates nodes from palette drops (sets `Node.type` to `'btNode'`)
 - `handleSave` - Exports to XML and writes file
@@ -306,7 +306,7 @@ Key methods:
 
 ### BTNode.tsx
 
-The ReactFlow node component. Renders:
+The @xyflow/react node component. Renders:
 
 - **Header** with node name and optional custom instance name (`nodeName`)
 - **Fields** with values and value-type indicators (literal vs. variable)
