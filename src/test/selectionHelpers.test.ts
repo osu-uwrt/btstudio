@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import type { Node, Edge } from 'reactflow';
+import { AppNode, AppEdge } from '../types';
 import {
   getContainedEdges,
   buildPastedNodes,
@@ -15,16 +15,25 @@ import {
 // Fixtures
 // ---------------------------------------------------------------------------
 
-function makeNode(id: string, x = 0, y = 0, type = 'Sequence'): Node {
+function makeNode(id: string, x = 0, y = 0, type = 'Sequence'): AppNode {
   return {
     id,
     type: 'btNode',
     position: { x, y },
-    data: { type, instanceId: id },
+    data: {
+      id: type.toLowerCase(),
+      type,
+      category: 'action',
+      name: type,
+      description: '',
+      fields: [],
+      instanceId: id,
+      color: '#4CAF50',
+    },
   };
 }
 
-function makeEdge(source: string, target: string): Edge {
+function makeEdge(source: string, target: string): AppEdge {
   return { id: `${source}-${target}`, source, target };
 }
 
@@ -105,7 +114,16 @@ describe('buildPastedNodes', () => {
   });
 
   it('uses "node" as type prefix when data.type is missing', () => {
-    const bare: Node = { id: 'x', type: 'btNode', position: { x: 0, y: 0 }, data: {} };
+    const bare = { id: 'x', type: 'btNode', position: { x: 0, y: 0 }, data: {
+      id: 'unknown',
+      type: '',
+      category: 'action' as const,
+      name: 'Unknown',
+      description: '',
+      fields: [],
+      instanceId: 'x',
+      color: '#999',
+    } } satisfies AppNode;
     const { nodes } = buildPastedNodes([bare], 99);
     expect(nodes[0].id).toBe('node_paste_99_0');
   });

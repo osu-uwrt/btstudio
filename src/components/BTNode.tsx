@@ -11,7 +11,7 @@
  */
 
 import React, { memo } from 'react';
-import { Handle, Position } from 'reactflow';
+import { Handle, Position } from '@xyflow/react';
 import './BTNode.css';
 
 // ---------------------------------------------------------------------------

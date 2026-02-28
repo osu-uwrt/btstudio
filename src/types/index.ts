@@ -8,6 +8,8 @@
  *   - xmlSerializer.ts (import / export)
  */
 
+import type { Node as XYFlowNode, Edge as XYFlowEdge } from '@xyflow/react';
+
 // ---------------------------------------------------------------------------
 // BehaviorTree Node Categories
 // ---------------------------------------------------------------------------
@@ -135,6 +137,44 @@ export interface Variable {
   name: string;
   value: string;
 }
+
+// ---------------------------------------------------------------------------
+// ReactFlow Node/Edge Aliases
+// ---------------------------------------------------------------------------
+
+/**
+ * Data shape stored in each ReactFlow node's `data` property on the canvas.
+ *
+ * This is effectively `BTNodeDefinition` plus instance-specific fields
+ * (`instanceId`, `color`) that are assigned when a node is dropped.
+ * The index signature satisfies the `Record<string, unknown>` constraint
+ * required by `@xyflow/react`'s `Node<T>` generic.
+ */
+export interface BTNodeData {
+  [key: string]: unknown;
+  /** Library node identifier. */
+  id: string;
+  /** BT XML tag name (e.g. 'Sequence', 'PrintMessage'). */
+  type: string;
+  category: NodeCategory;
+  /** Display name shown in the node header. */
+  name: string;
+  description: string;
+  fields: NodeField[];
+  ports?: SubTreePort[];
+  subtreeId?: string;
+  nodeName?: string;
+  /** Unique runtime instance ID. */
+  instanceId: string;
+  /** Display colour (hex or CSS colour). */
+  color: string;
+}
+
+/** ReactFlow node carrying BTstudio-specific data. */
+export type AppNode = XYFlowNode<BTNodeData>;
+
+/** ReactFlow edge (no custom data needed). */
+export type AppEdge = XYFlowEdge;
 
 // ---------------------------------------------------------------------------
 // Application State

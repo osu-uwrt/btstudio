@@ -17,25 +17,24 @@
  */
 
 import React, { useCallback, useState, useEffect, useRef } from 'react';
-import ReactFlow, {
-  Node,
-  Edge,
+import {
+  ReactFlow,
   Controls,
   Background,
   useNodesState,
   useEdgesState,
   addEdge,
-  Connection,
+  type Connection,
   ConnectionMode,
   Panel,
-  NodeChange,
-  ReactFlowInstance,
+  type NodeChange,
+  type ReactFlowInstance,
   SelectionMode,
-  OnSelectionChangeParams,
-} from 'reactflow';
-import 'reactflow/dist/style.css';
+  type OnSelectionChangeParams,
+} from '@xyflow/react';
+import '@xyflow/react/dist/style.css';
 import { BoxSelect, Copy, ClipboardPaste, Trash2 } from 'lucide-react';
-import { BTNodeDefinition, NodeField, Variable } from '../types';
+import { AppNode, AppEdge, BTNodeDefinition, NodeField, Variable } from '../types';
 import { getCategoryColor, nodeLibrary } from '../data/nodeLibrary';
 import { exportToXML, exportMultiTreeToXML } from '../utils/xmlSerializer';
 import {
@@ -79,17 +78,17 @@ const TreeEditor: React.FC<TreeEditorProps> = ({
   onSyncVariables,
   tabId 
 }) => {
-  const [nodes, setNodes, onNodesChange] = useNodesState([]);
-  const [edges, setEdges, onEdgesChange] = useEdgesState([]);
+  const [nodes, setNodes, onNodesChange] = useNodesState<AppNode>([]);
+  const [edges, setEdges, onEdgesChange] = useEdgesState<AppEdge>([]);
   const [selectedNode, setSelectedNode] = useState<string | null>(null);
-  const [reactFlowInstance, setReactFlowInstance] = useState<ReactFlowInstance | null>(null);
+  const [reactFlowInstance, setReactFlowInstance] = useState<ReactFlowInstance<AppNode, AppEdge> | null>(null);
   const [lastImportedFile, setLastImportedFile] = useState<string>('behavior_tree.xml');
   const [isSessionChecked, setIsSessionChecked] = useState(false);
 
   // Box-select mode
   const [boxSelectMode, setBoxSelectMode] = useState(false);
-  const selectedNodesRef = useRef<Node[]>([]);
-  const selectedEdgesRef = useRef<Edge[]>([]);
+  const selectedNodesRef = useRef<AppNode[]>([]);
+  const selectedEdgesRef = useRef<AppEdge[]>([]);
 
   // Workspace integration
   const { state: workspaceState, dispatch: workspaceDispatch, activeTree } = useWorkspace();
@@ -121,7 +120,7 @@ const TreeEditor: React.FC<TreeEditorProps> = ({
       const declareNodeDef = nodeLibrary.find(n => n.type === 'DeclareVariable');
       if (!declareNodeDef) return;
 
-      const newNode: Node = {
+      const newNode: AppNode = {
         id: `DeclareVariable_${variable.name}_${Date.now()}`,
         type: 'btNode',
         position: { x: 100 + nodes.length * 20, y: 150 + nodes.length * 20 }, // Offset position
@@ -225,8 +224,8 @@ const TreeEditor: React.FC<TreeEditorProps> = ({
     if (stored) {
       try {
         const parsed = JSON.parse(stored) as {
-          nodes: Node[];
-          edges: Edge[];
+          nodes: AppNode[];
+          edges: AppEdge[];
           lastImportedFile?: string;
         };
         if (parsed.nodes?.length) {
@@ -280,7 +279,7 @@ const TreeEditor: React.FC<TreeEditorProps> = ({
     if (!hasInitializedRef.current && nodes.length === 0) {
       const rootNodeDef = nodeLibrary.find(n => n.category === 'root');
       if (rootNodeDef) {
-        const rootNode: Node = {
+        const rootNode: AppNode = {
           id: 'root_node',
           type: 'btNode',
           position: { x: 250, y: 50 },
@@ -298,14 +297,14 @@ const TreeEditor: React.FC<TreeEditorProps> = ({
 
   // Undo/Redo history
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const [_historyPast, setHistoryPast] = useState<{ nodes: Node[]; edges: Edge[] }[]>([]);
+  const [_historyPast, setHistoryPast] = useState<{ nodes: AppNode[]; edges: AppEdge[] }[]>([]);
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const [_historyFuture, setHistoryFuture] = useState<{ nodes: Node[]; edges: Edge[] }[]>([]);
+  const [_historyFuture, setHistoryFuture] = useState<{ nodes: AppNode[]; edges: AppEdge[] }[]>([]);
   const isTimeTravelRef = useRef(false);
   const isDraggingRef = useRef(false);
-  const nodesRef = useRef<Node[]>(nodes);
-  const edgesRef = useRef<Edge[]>(edges);
-  const prevSnapshotRef = useRef<{ nodes: Node[]; edges: Edge[] }>({ nodes, edges });
+  const nodesRef = useRef<AppNode[]>(nodes);
+  const edgesRef = useRef<AppEdge[]>(edges);
+  const prevSnapshotRef = useRef<{ nodes: AppNode[]; edges: AppEdge[] }>({ nodes, edges });
   const HISTORY_LIMIT = 20;
 
   // keep refs updated
@@ -339,7 +338,7 @@ const TreeEditor: React.FC<TreeEditorProps> = ({
 
     // Custom nodes change handler to detect drag start/end
   const handleNodesChange = useCallback(
-    (changes: NodeChange[]) => {
+    (changes: NodeChange<AppNode>[]) => {
       // Check if any change is a drag start
       const hasDragStart = changes.some((change) => change.type === 'position' && change.dragging === true);
       // Check if any change is a drag end
@@ -412,7 +411,7 @@ const TreeEditor: React.FC<TreeEditorProps> = ({
   }, [undo, redo]);
 
   // ─── Selection tracking (for box-select copy/paste/delete) ────────────
-  const onSelectionChange = useCallback(({ nodes: selNodes, edges: selEdges }: OnSelectionChangeParams) => {
+  const onSelectionChange = useCallback(({ nodes: selNodes, edges: selEdges }: OnSelectionChangeParams<AppNode, AppEdge>) => {
     selectedNodesRef.current = selNodes;
     selectedEdgesRef.current = selEdges;
   }, []);
@@ -583,11 +582,10 @@ const TreeEditor: React.FC<TreeEditorProps> = ({
         }
       }
       
-      const reactFlowBounds = (event.target as HTMLElement).getBoundingClientRect();
-      const position = reactFlowInstance?.project({
-        x: event.clientX - reactFlowBounds.left,
-        y: event.clientY - reactFlowBounds.top,
-      }) || { x: event.clientX, y: event.clientY };
+      const position = reactFlowInstance?.screenToFlowPosition({
+        x: event.clientX,
+        y: event.clientY,
+      }) ?? { x: event.clientX, y: event.clientY };
 
       // Clean up internal flags before creating node
       const { _isFromLibrary, ...cleanNodeDef } = nodeDef;
@@ -605,7 +603,7 @@ const TreeEditor: React.FC<TreeEditorProps> = ({
         }));
       }
       
-      const newNode: Node = {
+      const newNode: AppNode = {
         id: `${cleanNodeDef.type}_${Date.now()}`,
         type: 'btNode',
         position,
@@ -622,7 +620,7 @@ const TreeEditor: React.FC<TreeEditorProps> = ({
     [reactFlowInstance, setNodes, nodes, isElectron, workspaceState.subtrees, workspaceDispatch]
   );
 
-  const onNodeClick = useCallback((_event: React.MouseEvent, node: Node) => {
+  const onNodeClick = useCallback((_event: React.MouseEvent, node: AppNode) => {
     setSelectedNode(node.id);
   }, []);
 

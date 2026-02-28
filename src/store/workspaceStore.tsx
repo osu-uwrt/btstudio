@@ -18,8 +18,7 @@
  */
 
 import React, { createContext, useContext, useReducer, useCallback } from 'react';
-import { Node, Edge } from 'reactflow';
-import { Variable } from '../types';
+import { AppNode, AppEdge, Variable } from '../types';
 import { TreeData } from '../utils/xmlSerializer';
 
 // ============ Types ============
@@ -64,7 +63,7 @@ export type WorkspaceAction =
   | { type: 'SET_ACTIVE_FILE'; path: string; name: string; mainTree: TreeData; subtrees: Map<string, TreeData> }
   | { type: 'SET_LIBRARY_SUBTREES'; subtrees: Map<string, TreeData>; modifiedTime: string | null }
   | { type: 'SET_ACTIVE_TREE'; treeId: string | null }
-  | { type: 'UPDATE_TREE'; treeId: string | null; nodes: Node[]; edges: Edge[]; variables: Variable[] }
+  | { type: 'UPDATE_TREE'; treeId: string | null; nodes: AppNode[]; edges: AppEdge[]; variables: Variable[] }
   | { type: 'ADD_SUBTREE'; subtreeId: string; treeData: TreeData }
   | { type: 'ADD_SUBTREE_FROM_LIBRARY'; subtreeId: string }
   | { type: 'ADD_NEW_SUBTREE_TO_LIBRARY'; subtree: TreeData }

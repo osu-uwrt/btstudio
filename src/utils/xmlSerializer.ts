@@ -14,12 +14,8 @@
  * src/test/xmlSerializer.test.ts.
  */
 
-import type { Node as FlowNode, Edge } from 'reactflow';
-import { NodeField, SubTreePort, Variable } from '../types';
+import { AppNode, AppEdge, NodeField, SubTreePort, Variable } from '../types';
 import { getCategoryColor, inferCategoryFromType } from '../data/nodeLibrary';
-
-/** Alias to avoid collision with the DOM `Node` type. */
-type RFNode = FlowNode;
 
 // ---------------------------------------------------------------------------
 // Serialization options
@@ -40,8 +36,8 @@ interface SerializationOptions {
 export interface TreeData {
   /** BehaviorTree ID attribute (e.g. "NavigationTree"). */
   id: string;
-  nodes: RFNode[];
-  edges: Edge[];
+  nodes: AppNode[];
+  edges: AppEdge[];
   variables: Variable[];
   /** Optional human-readable description (stored as an XML comment). */
   description?: string;
@@ -70,8 +66,8 @@ export interface MultiTreeParseResult {
  * Export a single tree to BehaviorTree.cpp v4 XML.
  */
 export function exportToXML(
-  nodes: RFNode[],
-  edges: Edge[],
+  nodes: AppNode[],
+  edges: AppEdge[],
   variables: Variable[],
   treeId: string = 'MainTree',
   options: SerializationOptions = {},
@@ -171,8 +167,8 @@ export function exportSubtreeLibraryToXML(
  * For files that contain multiple trees, use `importMultiTreeFromXML`.
  */
 export function importFromXML(xmlString: string): {
-  nodes: RFNode[];
-  edges: Edge[];
+  nodes: AppNode[];
+  edges: AppEdge[];
   variables: Variable[];
 } {
   const result = importMultiTreeFromXML(xmlString);
@@ -277,7 +273,7 @@ export function importSubtreeLibraryFromXML(xmlString: string): Map<string, Tree
 /**
  * Collect the IDs of all subtree nodes referenced in a flat node array.
  */
-export function getReferencedSubtreeIds(nodes: RFNode[]): string[] {
+export function getReferencedSubtreeIds(nodes: AppNode[]): string[] {
   const seen = new Set<string>();
   for (const node of nodes) {
     if (node.data?.category === 'subtree') {
@@ -372,9 +368,9 @@ function serializeBehaviorTree(tree: TreeData): string {
  * Build a parent -> children map and locate the root node.
  */
 function buildTreeStructure(
-  nodes: RFNode[],
-  edges: Edge[],
-): { root: RFNode | null; childrenMap: Map<string, string[]> } {
+  nodes: AppNode[],
+  edges: AppEdge[],
+): { root: AppNode | null; childrenMap: Map<string, string[]> } {
   const root = nodes.find((n) => n.data?.category === 'root') ?? null;
 
   const childrenMap = new Map<string, string[]>();
@@ -403,9 +399,9 @@ function buildTreeStructure(
  * directly, because BehaviorTree.cpp trees always start below `<BehaviorTree>`.
  */
 function serializeNodeRecursive(
-  node: RFNode | null,
-  nodes: RFNode[],
-  edges: Edge[],
+  node: AppNode | null,
+  nodes: AppNode[],
+  edges: AppEdge[],
   variables: Variable[],
   indentLevel: number,
 ): string {
@@ -452,7 +448,7 @@ function serializeNodeRecursive(
 }
 
 /** Serialize a SubTree reference node (always self-closing). */
-function serializeSubTreeNode(node: RFNode, indentLevel: number): string {
+function serializeSubTreeNode(node: AppNode, indentLevel: number): string {
   const indent = '  '.repeat(indentLevel);
   const { data } = node;
   const subtreeId: string = data?.subtreeId ?? data?.type ?? 'UnnamedSubTree';
@@ -497,11 +493,11 @@ function buildAttributeString(fields: NodeField[], nodeName?: string): string {
 /**
  * Get the direct children of a node, sorted left-to-right by x-position.
  */
-function getNodeChildren(nodeId: string, nodes: RFNode[], edges: Edge[]): RFNode[] {
+function getNodeChildren(nodeId: string, nodes: AppNode[], edges: AppEdge[]): AppNode[] {
   const childIds = edges.filter((e) => e.source === nodeId).map((e) => e.target);
   return childIds
     .map((id) => nodes.find((n) => n.id === id))
-    .filter((n): n is RFNode => n !== undefined)
+    .filter((n): n is AppNode => n !== undefined)
     .sort((a, b) => (a.position?.x ?? 0) - (b.position?.x ?? 0));
 }
 
@@ -683,12 +679,12 @@ function parseTreeStructure(
   btElement: Element,
   variables: Variable[],
   firstSetBlackboardPerVariable: Map<string, Element>,
-): { nodes: RFNode[]; edges: Edge[] } {
-  const nodes: RFNode[] = [];
-  const edges: Edge[] = [];
+): { nodes: AppNode[]; edges: AppEdge[] } {
+  const nodes: AppNode[] = [];
+  const edges: AppEdge[] = [];
 
   // Synthetic root node
-  const rootNode: RFNode = {
+  const rootNode: AppNode = {
     id: 'root_node',
     type: 'btNode',
     position: { x: 250, y: 50 },
@@ -743,12 +739,12 @@ function parseNodeRecursive(
   variables: Variable[],
   firstSetBlackboardPerVariable: Map<string, Element>,
 ): {
-  node: RFNode | null;
-  edges: Edge[];
-  allNodes: RFNode[];
+  node: AppNode | null;
+  edges: AppEdge[];
+  allNodes: AppNode[];
 } {
-  const edges: Edge[] = [];
-  const allNodes: RFNode[] = [];
+  const edges: AppEdge[] = [];
+  const allNodes: AppNode[] = [];
   let nodeType = element.tagName;
 
   // SubTree nodes have their own parsing path
@@ -776,7 +772,7 @@ function parseNodeRecursive(
   // Parse XML attributes into NodeField[]
   const fields = parseElementAttributes(element, nodeType);
 
-  const node: RFNode = {
+  const node: AppNode = {
     id: nodeId,
     type: 'btNode',
     position: { x, y },
@@ -866,7 +862,7 @@ function parseElementAttributes(element: Element, nodeType: string): NodeField[]
 }
 
 /** Create a SubTree reference node from an XML element. */
-function createSubTreeNode(element: Element, subtreeId: string, x: number, y: number): RFNode {
+function createSubTreeNode(element: Element, subtreeId: string, x: number, y: number): AppNode {
   const nodeId = `SubTree_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
   const nodeName = element.getAttribute('name') || undefined;
 

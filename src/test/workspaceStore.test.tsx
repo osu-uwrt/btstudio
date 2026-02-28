@@ -160,7 +160,11 @@ describe('workspaceStore', () => {
         result.current.dispatch({
           type: 'UPDATE_TREE',
           treeId: null,
-          nodes: [{ id: 'new', type: 'btNode', position: { x: 0, y: 0 }, data: {} }],
+          nodes: [{ id: 'new', type: 'btNode', position: { x: 0, y: 0 }, data: {
+            id: 'action', type: 'PrintMessage', category: 'action' as const,
+            name: 'PrintMessage', description: 'test', fields: [],
+            instanceId: 'new', color: '#4CAF50',
+          } }],
           edges: [],
           variables: [],
         });

@@ -9,8 +9,7 @@
 
 import React, { useState } from 'react';
 import { X } from 'lucide-react';
-import { Node } from 'reactflow';
-import { NodeField, Variable } from '../types';
+import { AppNode, NodeField, Variable } from '../types';
 import './NodePropertiesPanel.css';
 
 // ---------------------------------------------------------------------------
@@ -18,7 +17,7 @@ import './NodePropertiesPanel.css';
 // ---------------------------------------------------------------------------
 
 interface NodePropertiesPanelProps {
-  node: Node;
+  node: AppNode;
   variables: Variable[];
   onUpdateField: (nodeId: string, fieldName: string, value: string | number | boolean, valueType: 'literal' | 'variable') => void;
   onUpdateName?: (nodeId: string, name: string) => void;

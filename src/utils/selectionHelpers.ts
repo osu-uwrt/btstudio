@@ -4,15 +4,15 @@
  * Extracted from TreeEditor so the logic is unit-testable without React hooks.
  */
 
-import type { Node, Edge } from 'reactflow';
+import type { AppNode, AppEdge } from '../types';
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
 export interface ClipboardData {
-  nodes: Node[];
-  edges: Edge[];
+  nodes: AppNode[];
+  edges: AppEdge[];
 }
 
 // ---------------------------------------------------------------------------
@@ -23,7 +23,7 @@ export interface ClipboardData {
  * Return edges that are fully contained within a set of selected node IDs.
  * An edge is "contained" when both its source AND target are in the set.
  */
-export function getContainedEdges(selectedNodeIds: Set<string>, allEdges: Edge[]): Edge[] {
+export function getContainedEdges(selectedNodeIds: Set<string>, allEdges: AppEdge[]): AppEdge[] {
   return allEdges.filter(e => selectedNodeIds.has(e.source) && selectedNodeIds.has(e.target));
 }
 
@@ -34,13 +34,13 @@ export function getContainedEdges(selectedNodeIds: Set<string>, allEdges: Edge[]
  * @returns The pasted nodes and a mapping from old ID -> new ID.
  */
 export function buildPastedNodes(
-  clipboardNodes: Node[],
+  clipboardNodes: AppNode[],
   timestamp: number,
   offset = 50,
-): { nodes: Node[]; idMap: Map<string, string> } {
+): { nodes: AppNode[]; idMap: Map<string, string> } {
   const idMap = new Map<string, string>();
 
-  const nodes: Node[] = clipboardNodes.map((node, idx) => {
+  const nodes: AppNode[] = clipboardNodes.map((node, idx) => {
     const newId = `${node.data?.type || 'node'}_paste_${timestamp}_${idx}`;
     idMap.set(node.id, newId);
 
@@ -66,7 +66,7 @@ export function buildPastedNodes(
  * Re-map clipboard edge source/target using the provided ID mapping.
  * Only edges whose source AND target are both present in the map are returned.
  */
-export function remapEdges(clipboardEdges: Edge[], idMap: Map<string, string>): Edge[] {
+export function remapEdges(clipboardEdges: AppEdge[], idMap: Map<string, string>): AppEdge[] {
   return clipboardEdges
     .filter(e => idMap.has(e.source) && idMap.has(e.target))
     .map(e => ({

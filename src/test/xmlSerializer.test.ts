@@ -27,7 +27,7 @@ import {
   updateSubtreeInXML,
   TreeData,
 } from '../utils/xmlSerializer';
-import type { Node as FlowNode, Edge } from 'reactflow';
+import type { AppNode, AppEdge, NodeField } from '../types';
 import {
   MINIMAL_TREE_XML,
   TREE_WITH_VARIABLES_XML,
@@ -45,8 +45,8 @@ import {
 // Helpers
 // ---------------------------------------------------------------------------
 
-/** Build a minimal root FlowNode */
-function makeRootNode(id = 'root_node', x = 250, y = 50): FlowNode {
+/** Build a minimal root AppNode */
+function makeRootNode(id = 'root_node', x = 250, y = 50): AppNode {
   return {
     id,
     type: 'btNode',
@@ -64,15 +64,15 @@ function makeRootNode(id = 'root_node', x = 250, y = 50): FlowNode {
   };
 }
 
-/** Build a simple action FlowNode */
+/** Build a simple action AppNode */
 function makeActionNode(
   id: string,
   nodeType: string,
-  fields: Array<{ name: string; type: string; valueType: string; value: string | number | boolean }> = [],
+  fields: NodeField[] = [],
   x = 250,
   y = 150,
   nodeName?: string,
-): FlowNode {
+): AppNode {
   return {
     id,
     type: 'btNode',
@@ -91,14 +91,14 @@ function makeActionNode(
   };
 }
 
-/** Build a subtree reference FlowNode */
+/** Build a subtree reference AppNode */
 function makeSubtreeNode(
   id: string,
   subtreeId: string,
-  fields: Array<{ name: string; type: string; valueType: string; value: string }> = [],
+  fields: NodeField[] = [],
   x = 250,
   y = 150,
-): FlowNode {
+): AppNode {
   return {
     id,
     type: 'btNode',
@@ -117,7 +117,7 @@ function makeSubtreeNode(
   };
 }
 
-function edge(source: string, target: string): Edge {
+function edge(source: string, target: string): AppEdge {
   return { id: `${source}-${target}`, source, target };
 }
 
@@ -481,7 +481,7 @@ describe('XML escaping', () => {
 
 describe('getReferencedSubtreeIds', () => {
   it('returns unique subtree IDs referenced in nodes', () => {
-    const nodes: FlowNode[] = [
+    const nodes: AppNode[] = [
       makeSubtreeNode('s1', 'SubA'),
       makeSubtreeNode('s2', 'SubB'),
       makeSubtreeNode('s3', 'SubA'), // duplicate
@@ -494,7 +494,7 @@ describe('getReferencedSubtreeIds', () => {
   });
 
   it('returns empty array when no subtrees are present', () => {
-    const nodes: FlowNode[] = [makeRootNode(), makeActionNode('a1', 'Delay')];
+    const nodes: AppNode[] = [makeRootNode(), makeActionNode('a1', 'Delay')];
     expect(getReferencedSubtreeIds(nodes)).toEqual([]);
   });
 });
