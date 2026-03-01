@@ -27,13 +27,17 @@ btstudio/
 │   │   └── workspaceStore.tsx # Redux-like state management
 │   ├── test/                # Vitest test suites
 │   │   ├── fixtures/        # XML test fixtures
+│   │   ├── layoutTree.test.ts
 │   │   ├── nodeLibrary.test.ts
+│   │   ├── selectionHelpers.test.ts
 │   │   ├── workspaceStore.test.tsx
 │   │   └── xmlSerializer.test.ts
 │   ├── types/
 │   │   ├── index.ts         # Shared TypeScript types
 │   │   └── electron.d.ts    # Electron preload type definitions
 │   ├── utils/
+│   │   ├── layoutTree.ts    # Tree auto-arrange layout algorithm
+│   │   ├── selectionHelpers.ts # Box-select and clipboard helpers
 │   │   └── xmlSerializer.ts # BehaviorTree.cpp XML parsing and export
 │   ├── App.tsx              # Main app wrapper
 │   ├── App.css              # App-level styles
@@ -271,6 +275,27 @@ When a subtree is loaded or reconciled, ports become editable fields on subtree 
 - `getReferencedSubtreeIds(nodes)` - Lists all subtree IDs referenced by nodes in a tree
 - Variable extraction is automatic during import (scans for `SetBlackboard` nodes)
 
+## Auto-arrange layout
+
+`layoutTree.ts` implements a Reingold-Tilford-inspired tree layout algorithm. It is a pure function that takes nodes and edges and returns new nodes with updated positions.
+
+### Algorithm
+
+1. **Build adjacency tree** from edges, preserving left-to-right child order based on current x-positions.
+2. **Measure subtree widths** bottom-up (leaf nodes use `NODE_WIDTH`, parents are the sum of children widths plus gaps).
+3. **Assign positions** top-down: children are packed tightly left-to-right, and each parent is centered above its children.
+4. **Handle orphans**: Nodes not reachable from root are stacked below the tree.
+
+### Constants
+
+- `NODE_WIDTH = 200` (matches BTNode CSS min-width + padding)
+- `H_GAP = 40` (horizontal gap between sibling subtrees)
+- `V_GAP = 120` (vertical distance between depth levels)
+
+### Usage
+
+The auto-arrange button in the TreeEditor toolbar calls `layoutNodes(nodes, edges)` and updates the canvas. The operation is undoable via the standard history system.
+
 ## UI components
 
 ### App.tsx
@@ -295,6 +320,7 @@ The main canvas using @xyflow/react. Responsibilities:
 - **Variable integration**: Manages DeclareVariable nodes when variables are added/removed
 - **DeclareVariable node creation**: Uses callback ref from App to create nodes in response to VariableEditor actions
 - **Session persistence**: Stores tree state in `sessionStorage` per tab ID to survive reloads
+- **Auto-arrange**: Recomputes tree layout using a Reingold-Tilford-inspired algorithm (via `layoutTree.ts`)
 
 Key methods:
 - `onNodesChange` / `onEdgesChange` - @xyflow/react change handlers
@@ -303,6 +329,7 @@ Key methods:
 - `handleSave` - Exports to XML and writes file
 - `handleExport` - Shows native save dialog, exports without changing active file
 - `undo()` / `redo()` - History navigation
+- `autoArrange` - Recompute tree layout to eliminate overlaps and edge crossings
 
 ### BTNode.tsx
 

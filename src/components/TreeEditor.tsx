@@ -33,7 +33,7 @@ import {
   type OnSelectionChangeParams,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import { BoxSelect, Copy, ClipboardPaste, Trash2 } from 'lucide-react';
+import { BoxSelect, Copy, ClipboardPaste, Trash2, AlignVerticalSpaceAround } from 'lucide-react';
 import { AppNode, AppEdge, BTNodeDefinition, NodeField, Variable } from '../types';
 import { getCategoryColor, nodeLibrary } from '../data/nodeLibrary';
 import { exportToXML, exportMultiTreeToXML } from '../utils/xmlSerializer';
@@ -44,6 +44,7 @@ import {
   getDeleteableNodeIds,
   ClipboardData,
 } from '../utils/selectionHelpers';
+import { layoutNodes } from '../utils/layoutTree';
 import { useWorkspace } from '../store/workspaceStore';
 import { useWorkspaceOps } from '../hooks/useWorkspaceOps';
 import BTNode from './BTNode';
@@ -459,6 +460,15 @@ const TreeEditor: React.FC<TreeEditorProps> = ({
     setEdges(eds => eds.filter(e => !toDelete.has(e.source) && !toDelete.has(e.target)));
   }, [setNodes, setEdges]);
 
+  /** Auto-arrange the tree to eliminate overlaps and crossed edges. */
+  const autoArrange = useCallback(() => {
+    setNodes((currentNodes) => layoutNodes(currentNodes, edgesRef.current));
+    // After layout, fit the view so the full tree is visible
+    setTimeout(() => {
+      reactFlowInstance?.fitView({ padding: 0.15, duration: 300 });
+    }, 50);
+  }, [setNodes, reactFlowInstance]);
+
   /** Toggle box-select mode on/off. */
   const toggleBoxSelect = useCallback(() => {
     setBoxSelectMode(prev => !prev);
@@ -855,6 +865,14 @@ const TreeEditor: React.FC<TreeEditorProps> = ({
             disabled={selectedNodesRef.current.length === 0}
           >
             <Trash2 size={14} />
+          </button>
+          <div className="box-select-divider" />
+          <button
+            className="box-select-action-btn"
+            onClick={autoArrange}
+            title="Auto-arrange tree layout"
+          >
+            <AlignVerticalSpaceAround size={14} />
           </button>
         </Panel>
 

@@ -184,6 +184,13 @@
   color: #f44336;
 }
 
+.box-select-divider {
+  width: 1px;
+  height: 20px;
+  background: #555;
+  margin: 0 2px;
+}
+
 /* ReactFlow selection box styling */
 .react-flow__selection {
   background: rgba(0, 120, 212, 0.08) !important;

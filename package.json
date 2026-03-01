@@ -9,7 +9,15 @@
   "main": "electron/main.js",
   "homepage": "./",
   "engines": {
-    "node": ">=24.0.0"
+    "node": ">=22.12.0"
+  },
+  "overrides": {
+    "@electron/asar": "^4.0.1",
+    "@electron/get": "^4.0.2",
+    "global-agent": "npm:noop3@*",
+    "glob": "^13.0.6",
+    "inflight": "npm:noop3@*",
+    "rimraf": "^6.0.1"
   },
   "dependencies": {
     "@xyflow/react": "^12.10.1",
