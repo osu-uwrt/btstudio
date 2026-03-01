@@ -531,11 +531,48 @@ const TreeEditor: React.FC<TreeEditorProps> = ({
     };
   }, []);
 
+  /**
+   * Validate connections during drag to prevent visually confusing snaps.
+   * Called by ReactFlow before a connection handle lights up / snaps.
+   */
+  const isValidConnection = useCallback(
+    (connection: Connection | AppEdge) => {
+      const source = 'source' in connection ? connection.source : undefined;
+      const target = 'target' in connection ? connection.target : undefined;
+      if (!source || !target) return false;
+
+      // Reject self-connections
+      if (source === target) return false;
+
+      // Reject connections targeting the root node
+      if (target === 'root_node') return false;
+
+      // Reject if target already has an incoming edge
+      const incoming = edgesRef.current.filter(e => e.target === target);
+      if (incoming.length >= 1) return false;
+
+      // Non-control source nodes: allow only one outgoing edge
+      const sourceNode = nodesRef.current.find(n => n.id === source);
+      if (sourceNode && sourceNode.data?.category !== 'control') {
+        const outgoing = edgesRef.current.filter(e => e.source === source);
+        if (outgoing.length >= 1) return false;
+      }
+
+      return true;
+    },
+    [],
+  );
 
   const onConnect = useCallback(
     (params: Connection) => {
       setEdges((eds) => {
         if (!params.target || !params.source) return eds;
+
+        // Reject connections targeting the root node
+        if (params.target === 'root_node') return eds;
+
+        // Reject self-connections
+        if (params.source === params.target) return eds;
 
         // Reject if target already has an incoming connection
         const incoming = eds.filter((e) => e.target === params.target);
@@ -817,13 +854,14 @@ const TreeEditor: React.FC<TreeEditorProps> = ({
         onNodesChange={handleNodesChange}
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
+        isValidConnection={isValidConnection}
         onInit={setReactFlowInstance}
         onDrop={onDrop}
         onDragOver={onDragOver}
         onNodeClick={onNodeClick}
         onPaneClick={onPaneClick}
         nodeTypes={nodeTypes}
-        connectionMode={ConnectionMode.Loose}
+        connectionMode={ConnectionMode.Strict}
         selectionOnDrag={boxSelectMode}
         selectionMode={SelectionMode.Partial}
         panOnDrag={!boxSelectMode}

@@ -15,7 +15,7 @@ import {
 // Fixtures
 // ---------------------------------------------------------------------------
 
-function makeNode(id: string, x = 0, y = 0, type = 'Sequence'): AppNode {
+function makeNode(id: string, x = 0, y = 0, type = 'Sequence', category: 'action' | 'control' | 'root' | 'decorator' | 'condition' | 'subtree' = 'action'): AppNode {
   return {
     id,
     type: 'btNode',
@@ -23,7 +23,7 @@ function makeNode(id: string, x = 0, y = 0, type = 'Sequence'): AppNode {
     data: {
       id: type.toLowerCase(),
       type,
-      category: 'action',
+      category,
       name: type,
       description: '',
       fields: [],
@@ -131,6 +131,29 @@ describe('buildPastedNodes', () => {
   it('applies custom offset', () => {
     const { nodes } = buildPastedNodes([makeNode('n1', 10, 20)], 0, 100);
     expect(nodes[0].position).toEqual({ x: 110, y: 120 });
+  });
+
+  it('filters out root nodes from pasted set', () => {
+    const root = makeNode('root_node', 0, 0, 'Root', 'root');
+    const action = makeNode('a1', 100, 100, 'PrintMessage');
+    const { nodes, idMap } = buildPastedNodes([root, action], 2000);
+
+    // Only the action should be pasted
+    expect(nodes).toHaveLength(1);
+    expect(nodes[0].data.type).toBe('PrintMessage');
+
+    // Root should NOT be in the idMap
+    expect(idMap.has('root_node')).toBe(false);
+    // Action should be in the idMap
+    expect(idMap.has('a1')).toBe(true);
+  });
+
+  it('returns empty when only root nodes are in clipboard', () => {
+    const root = makeNode('root_node', 0, 0, 'Root', 'root');
+    const { nodes, idMap } = buildPastedNodes([root], 3000);
+
+    expect(nodes).toHaveLength(0);
+    expect(idMap.size).toBe(0);
   });
 });
 

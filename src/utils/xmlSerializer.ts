@@ -229,6 +229,11 @@ export function importMultiTreeFromXML(xmlString: string): MultiTreeParseResult 
   // Attach port definitions from <TreeNodesModel>
   attachPortDefinitions(root, subtrees);
 
+  // Annotate SubTree reference nodes' fields with portDirection from port defs
+  const portDefs = parseTreeNodesModel(root);
+  const allTrees = [mainTree!, ...Array.from(subtrees.values())];
+  annotateSubTreeNodeFields(allTrees, portDefs, subtrees);
+
   return { mainTree, subtrees, treeOrder };
 }
 
@@ -263,6 +268,12 @@ export function importSubtreeLibraryFromXML(xmlString: string): Map<string, Tree
   });
 
   attachPortDefinitions(root, subtrees);
+
+  // Annotate SubTree reference nodes' fields with portDirection from port defs
+  const portDefs = parseTreeNodesModel(root);
+  const allTrees = Array.from(subtrees.values());
+  annotateSubTreeNodeFields(allTrees, portDefs, subtrees);
+
   return subtrees;
 }
 
@@ -901,6 +912,52 @@ function attachPortDefinitions(root: Element, subtrees: Map<string, TreeData>): 
     const subtree = subtrees.get(id);
     if (subtree) subtree.ports = ports;
   });
+}
+
+/**
+ * Walk all trees and annotate SubTree reference nodes' fields with
+ * `portDirection` from the port definitions in `<TreeNodesModel>` or
+ * from the referenced subtree's TreeData.
+ *
+ * This ensures that after XML import, subtree instances display the
+ * correct [IN]/[OUT] port labels in the editor.
+ */
+function annotateSubTreeNodeFields(
+  trees: TreeData[],
+  portDefinitions: Map<string, SubTreePort[]>,
+  subtreeDataMap: Map<string, TreeData>,
+): void {
+  for (const tree of trees) {
+    for (const node of tree.nodes) {
+      if (node.data?.category !== 'subtree') continue;
+
+      const subtreeId = node.data.subtreeId || node.data.type;
+      if (!subtreeId) continue;
+
+      // Resolve ports from TreeNodesModel first, then from subtree TreeData
+      const ports =
+        portDefinitions.get(subtreeId) ??
+        subtreeDataMap.get(subtreeId)?.ports;
+      if (!ports || ports.length === 0) continue;
+
+      // Build a port-name -> direction map
+      const portDirMap = new Map<string, 'input' | 'output'>();
+      for (const port of ports) {
+        // 'inout' ports are treated as input for display purposes
+        portDirMap.set(port.name, port.direction === 'output' ? 'output' : 'input');
+      }
+
+      // Annotate existing fields with portDirection
+      node.data.fields = node.data.fields.map(field => {
+        const dir = portDirMap.get(field.name);
+        if (dir) return { ...field, portDirection: dir };
+        return field;
+      });
+
+      // Attach ports to the node data for UI consistency
+      node.data.ports = ports;
+    }
+  }
 }
 
 /**

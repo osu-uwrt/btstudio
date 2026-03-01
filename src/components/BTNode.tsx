@@ -83,6 +83,7 @@ function FieldRow({ field, portLabel }: { field: DisplayField; portLabel?: strin
 const BTNode: React.FC<BTNodeProps> = ({ data, selected }) => {
   const displayLabel = data.nodeName || '';
   const isSubtree = data.category === 'subtree';
+  const isRoot = data.category === 'root';
 
   // Partition fields for subtree port display
   const inputFields = isSubtree ? data.fields.filter((f) => f.portDirection === 'input') : [];
@@ -94,7 +95,8 @@ const BTNode: React.FC<BTNodeProps> = ({ data, selected }) => {
       className={`bt-node ${selected ? 'selected' : ''} ${isSubtree ? 'subtree-node' : ''}`}
       style={{ borderColor: data.color }}
     >
-      <Handle type="target" position={Position.Top} className="node-handle" />
+      {/* Root nodes have no target (incoming) handle */}
+      {!isRoot && <Handle type="target" position={Position.Top} className="node-handle" />}
 
       <div className="node-header" style={{ backgroundColor: data.color }}>
         <div className="node-title">{data.name}</div>

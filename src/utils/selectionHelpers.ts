@@ -31,6 +31,8 @@ export function getContainedEdges(selectedNodeIds: Set<string>, allEdges: AppEdg
  * Build a new set of nodes from clipboard data with remapped IDs and an
  * offset applied to their positions.
  *
+ * Root nodes are excluded from the paste — only one root is allowed per tree.
+ *
  * @returns The pasted nodes and a mapping from old ID -> new ID.
  */
 export function buildPastedNodes(
@@ -40,7 +42,10 @@ export function buildPastedNodes(
 ): { nodes: AppNode[]; idMap: Map<string, string> } {
   const idMap = new Map<string, string>();
 
-  const nodes: AppNode[] = clipboardNodes.map((node, idx) => {
+  // Filter out root nodes — only one root per tree is allowed
+  const pastableNodes = clipboardNodes.filter(n => n.data?.category !== 'root');
+
+  const nodes: AppNode[] = pastableNodes.map((node, idx) => {
     const newId = `${node.data?.type || 'node'}_paste_${timestamp}_${idx}`;
     idMap.set(node.id, newId);
 

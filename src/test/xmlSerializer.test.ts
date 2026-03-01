@@ -411,6 +411,32 @@ describe('importMultiTreeFromXML', () => {
     expect(threshField?.valueType).toBe('variable');
     expect(threshField?.value).toBe('min_battery');
   });
+
+  it('annotates SubTree reference node fields with portDirection on import', () => {
+    const result = importMultiTreeFromXML(MULTI_TREE_XML);
+    const subNode = result.mainTree.nodes.find(n => n.data?.category === 'subtree');
+    expect(subNode).toBeDefined();
+
+    // The 'threshold' field should have portDirection='input' based on TreeNodesModel
+    const threshField = subNode?.data?.fields?.find((f: any) => f.name === 'threshold');
+    expect(threshField?.portDirection).toBe('input');
+
+    // The node data should also carry ports from TreeNodesModel
+    expect(subNode?.data?.ports).toBeDefined();
+    expect(subNode?.data?.ports?.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('preserves portDirection through multi-tree round-trip', () => {
+    const result = importMultiTreeFromXML(MULTI_TREE_XML);
+    const reExported = exportMultiTreeToXML(result.mainTree, result.subtrees);
+    const reimported = importMultiTreeFromXML(reExported);
+
+    const subNode = reimported.mainTree.nodes.find(n => n.data?.category === 'subtree');
+    expect(subNode).toBeDefined();
+
+    const threshField = subNode?.data?.fields?.find((f: any) => f.name === 'threshold');
+    expect(threshField?.portDirection).toBe('input');
+  });
 });
 
 // ---------------------------------------------------------------------------
