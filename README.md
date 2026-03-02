@@ -5,17 +5,17 @@ BehaviorTree Studio is a visual editor for BehaviorTree.cpp XML. It uses a works
 ## What this app does
 
 - Creates and edits BehaviorTree.cpp v4 XML files
-- Maintains a shared subtree library for reuse across tree files
-- Provides a drag-and-drop editor with node properties and variables
+- Maintains a shared subtree library for reuse across tree files within workspace
+- Provides a drag-and-drop editor with node/subtree properties and variables
 - Supports undo/redo and switching between the main tree and subtrees
 
 ## Core concepts
 
 ### Workspace
-Open a workspace folder that contains tree XML files. The app also uses a shared library file named `subtree_library.xml` inside the workspace to store reusable subtrees.
+Open a workspace folder that contains tree XML files or start with a blank folder. The app creates and uses a shared library file named `subtree_library.xml` inside the workspace folder to store reusable subtrees.
 
 ### Main tree and subtrees
-Each file contains a main tree plus optional subtrees. The main tree is exported with the tag `main_tree_to_execute` and an ID matching its initial filename to match BehaviorTree.cpp expectations. Subtrees are referenced by name and are defined as additional `<BehaviorTree>` elements in the same file.
+Each XML file contains a main tree plus optional subtrees. The main tree is exported with the tag `main_tree_to_execute` and an ID matching its initial filename to match BehaviorTree.cpp expectations. Subtrees are referenced by name and are defined as additional `<BehaviorTree>` elements in the same file.
 
 ### Subtree library
 The library is the ground truth for shared subtrees. When you save, the current file is saved, the library is updated, and any other files within your workspace that reference those subtrees are updated as well.
@@ -74,9 +74,10 @@ Runs the Vitest test suite (XML serializer, workspace store, node library, selec
 
 ### Work with subtrees
 - Switch to the Subtree Library tab in the palette to view and create subtrees.
-- When creating a subtree, optionally pick a custom color. The color is stored as an XML comment (`<!-- BTstudio:color=#HEXCODE -->`) so it does not interfere with BehaviorTree.cpp.
+- When creating a subtree, optionally pick a custom color and description. The color and description are stored in an XML comment so it does not interfere with BehaviorTree.CPP.
 - Drag a subtree onto the canvas to insert it into the active tree. Subtrees with a custom color display that color in both the palette and the canvas.
-- Click a subtree in the library to edit it.
+- Click a subtree in the top navigation bar to edit it.
+- Existing trees can be imported as subtrees. 
 
 ### Save
 - Use File → Save or the standard shortcut (Cmd+S / Ctrl+S).
@@ -153,7 +154,7 @@ Runs the Vitest test suite (XML serializer, workspace store, node library, selec
 - 🟪 **Decorator** (Purple): Inverter, Retry, Repeat, Timeout
 - 🟩 **Action** (Green): PrintMessage, SetVariable, Delay  
 - 🟦 **Condition** (Blue): CheckVariable, CompareNumbers
-- 🟦 **SubTree** (Cyan): Reusable subtree instances
+- 🟦 **SubTree** (Cyan or Custom): Reusable subtree instances
 
 
 ### Node names in XML
