@@ -112,3 +112,87 @@
 .editing-subtree-label strong {
   font-weight: 600;
 }
+
+/* Hide React Flow attribution badge (logo/link) in the editor */
+.tree-editor .react-flow__attribution {
+  display: none !important;
+}
+
+/* ── Box-select toolbar ──────────────────────────────────────────── */
+
+.box-select-panel {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: #2d2d2d;
+  border: 1px solid #444;
+  border-radius: 6px;
+  padding: 4px;
+}
+
+.box-select-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  color: #888;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.box-select-btn:hover {
+  background: #3d3d3d;
+  color: #fff;
+}
+
+.box-select-btn.active {
+  background: #0078d4;
+  border-color: #0078d4;
+  color: #fff;
+}
+
+.box-select-action-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  color: #888;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.box-select-action-btn:hover:not(:disabled) {
+  background: #3d3d3d;
+  color: #fff;
+}
+
+.box-select-action-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.box-select-action-btn.danger:hover:not(:disabled) {
+  background: rgba(244, 67, 54, 0.2);
+  color: #f44336;
+}
+
+.box-select-divider {
+  width: 1px;
+  height: 20px;
+  background: #555;
+  margin: 0 2px;
+}
+
+/* ReactFlow selection box styling */
+.react-flow__selection {
+  background: rgba(0, 120, 212, 0.08) !important;
+  border: 1px dashed #0078d4 !important;
+}

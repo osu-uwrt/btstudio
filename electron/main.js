@@ -1,3 +1,18 @@
+/**
+ * Electron Main Process
+ *
+ * Responsibilities:
+ * - Create the BrowserWindow with context-isolated preload
+ * - Build the native application menu (File, Edit, View, Help)
+ * - Handle IPC calls from the renderer for:
+ *   - Dialog operations (open folder/file, save, warn, confirm, prompt)
+ *   - File-system operations (read, write, list XML, exists, modifiedTime)
+ *   - Window management (title)
+ *
+ * Security: `nodeIntegration` is disabled; all node APIs are exposed
+ * exclusively through the preload bridge (`window.electronAPI`).
+ */
+
 const { app, BrowserWindow, ipcMain, dialog, Menu } = require('electron');
 const path = require('path');
 const fs = require('fs');
@@ -9,6 +24,11 @@ let mainWindow = null;
 const isDev = !app.isPackaged;
 
 
+/**
+ * Creates the main application window and builds the native menu.
+ * In development, loads from the Vite dev server; in production, loads
+ * the built index.html from the `build/` directory.
+ */
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1400,
@@ -164,7 +184,8 @@ function createWindow() {
   Menu.setApplicationMenu(menu);
 }
 
-// App lifecycle
+// ============ App Lifecycle ============
+
 app.whenReady().then(() => {
   createWindow();
   
@@ -183,7 +204,7 @@ app.on('activate', () => {
   }
 });
 
-// ============ IPC Handlers ============
+// ============ IPC Handlers: Dialogs ============
 
 // Open folder dialog
 ipcMain.handle('dialog:openFolder', async () => {
@@ -229,6 +250,8 @@ ipcMain.handle('dialog:saveFile', async (event, options = {}) => {
   
   return result.filePath;
 });
+
+// ============ IPC Handlers: File System ============
 
 // List XML files in a directory
 ipcMain.handle('fs:listXmlFiles', async (event, dirPath) => {

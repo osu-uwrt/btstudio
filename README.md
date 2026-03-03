@@ -5,17 +5,17 @@ BehaviorTree Studio is a visual editor for BehaviorTree.cpp XML. It uses a works
 ## What this app does
 
 - Creates and edits BehaviorTree.cpp v4 XML files
-- Maintains a shared subtree library for reuse across tree files
-- Provides a drag-and-drop editor with node properties and variables
+- Maintains a shared subtree library for reuse across tree files within workspace
+- Provides a drag-and-drop editor with node/subtree properties and variables
 - Supports undo/redo and switching between the main tree and subtrees
 
 ## Core concepts
 
 ### Workspace
-Open a workspace folder that contains tree XML files. The app also uses a shared library file named `subtree_library.xml` inside the workspace to store reusable subtrees.
+Open a workspace folder that contains tree XML files or start with a blank folder. The app creates and uses a shared library file named `subtree_library.xml` inside the workspace folder to store reusable subtrees.
 
 ### Main tree and subtrees
-Each file contains a main tree plus optional subtrees. The main tree is exported with the tag `main_tree_to_execute` and and ID matching it's innitial filename to match BehaviorTree.cpp expectations. Subtrees are referenced by name and are defined as additional `<BehaviorTree>` elements in the same file.
+Each XML file contains a main tree plus optional subtrees. The main tree is exported with the tag `main_tree_to_execute` and an ID matching its initial filename to match BehaviorTree.cpp expectations. Subtrees are referenced by name and are defined as additional `<BehaviorTree>` elements in the same file.
 
 ### Subtree library
 The library is the ground truth for shared subtrees. When you save, the current file is saved, the library is updated, and any other files within your workspace that reference those subtrees are updated as well.
@@ -27,7 +27,7 @@ The library is the ground truth for shared subtrees. When you save, the current 
 - npm (ships with Node.js)
 
 ### Application
-- MacOS 14+ or Linux
+- macOS 14+ or Linux
 - ARM64 or AMD64
 
 ## Getting started
@@ -42,12 +42,19 @@ npm install
 npm run electron:dev
 ```
 
-This starts the React app and the Electron shell together. The app will open automatically.
+This starts the Vite dev server and the Electron shell together. The app will open automatically.
 
 ### Build
 ```bash
 npm run build
 ```
+
+### Test
+```bash
+npm test
+```
+
+Runs the Vitest test suite (XML serializer, workspace store, node library, selection helpers). Use `npm run test:watch` for watch mode.
 
 ## Basic usage
 
@@ -67,8 +74,10 @@ npm run build
 
 ### Work with subtrees
 - Switch to the Subtree Library tab in the palette to view and create subtrees.
-- Drag a subtree onto the canvas to insert it into the active tree.
-- Click a subtree in the library to edit it.
+- When creating a subtree, optionally pick a custom color and description. The color and description are stored in an XML comment so it does not interfere with BehaviorTree.CPP.
+- Drag a subtree onto the canvas to insert it into the active tree. Subtrees with a custom color display that color in both the palette and the canvas.
+- Click a subtree in the top navigation bar to edit it.
+- Existing trees can be imported as subtrees. 
 
 ### Save
 - Use File → Save or the standard shortcut (Cmd+S / Ctrl+S).
@@ -103,7 +112,7 @@ npm run build
 
 ### VariableEditor (Right Sidebar)
 - Add new variables with type
-- Edit inital values inline
+- Edit initial values inline
 - Delete unwanted variables
 
 ### NodePropertiesPanel (Floating)
@@ -122,11 +131,20 @@ npm run build
 - **Delete**: Select node and press Delete key
 - **Deselect**: Click on background
 
+### Box select
+- **Toggle**: Click the BoxSelect button in the canvas toolbar, press Cmd/Ctrl+B, or hold Shift while dragging.
+- **Copy**: Cmd/Ctrl+C copies selected nodes and edges fully contained within the selection.
+- **Paste**: Cmd/Ctrl+V pastes the clipboard with an offset. The clipboard persists across subtree tabs within the current workspace session.
+- **Delete**: Delete or Backspace removes selected nodes (the root node is always protected) and their connected edges.
+
 ### Keyboard shortcuts
 - Save: Cmd+S / Ctrl+S
 - Undo: Cmd+Z / Ctrl+Z
 - Redo: Cmd+Shift+Z / Ctrl+Shift+Z
-- Delete: Delete key (removes selected node)
+- Toggle box select: Cmd+B / Ctrl+B
+- Copy selection: Cmd+C / Ctrl+C
+- Paste selection: Cmd+V / Ctrl+V
+- Delete selection: Delete or Backspace
 - Restart: Cmd+R / Ctrl+R (reloads window and closes file without saving)
 
 ## Node categories
@@ -136,7 +154,7 @@ npm run build
 - 🟪 **Decorator** (Purple): Inverter, Retry, Repeat, Timeout
 - 🟩 **Action** (Green): PrintMessage, SetVariable, Delay  
 - 🟦 **Condition** (Blue): CheckVariable, CompareNumbers
-- 🟦 **SubTree** (Cyan): Reusable subtree instances
+- 🟦 **SubTree** (Cyan or Custom): Reusable subtree instances
 
 
 ### Node names in XML
@@ -150,13 +168,13 @@ Node names are exported as the `name` attribute in BehaviorTree.cpp XML format:
 
 ## Notes
 
-- This app targets BehaviorTree.cpp v4 format and is compatible with Groot2 XML files.
+- This app targets BehaviorTree.cpp v4 XML format.
 - This does not interoperate with Groot2 projects.
-- There is no automatic save; use File → Save.
+- There is no automatic save; use File -> Save.
 - Node names use the standard BehaviorTree.cpp `name` attribute.
 - Blackboard is NOT shared between subtrees; use ports for data passing.
-- Be prepared to dive into XML when nessecary; renaming and other refactoring functions are not in the GUI.
-- Be careful when making edits outside to the XML outside of BTstudio as it can lead to unexpected behavior.
+- Be prepared to dive into XML when necessary; renaming and other refactoring functions are not in the GUI.
+- Be careful when making edits to the XML outside of BTstudio as it can lead to unexpected behavior.
 
 ## More documentation
 

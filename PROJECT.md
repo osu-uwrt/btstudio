@@ -1,6 +1,6 @@
 # BehaviorTree Studio - Project Documentation
 
-This document describes the architecture, data flow, and implementation details for developers contributing to BehaviorTree Studio. The application is a visual editor for BehaviorTree.cpp v4, built with Electron, React, TypeScript, and ReactFlow.
+This document describes the architecture, data flow, and implementation details for developers contributing to BehaviorTree Studio. The application is a visual editor for BehaviorTree.cpp v4, built with Electron, React, TypeScript, and @xyflow/react.
 
 ## Repository structure
 
@@ -9,16 +9,13 @@ btstudio/
 ├── electron/                 # Electron main process and preload
 │   ├── main.js              # IPC handlers, menus, file operations
 │   └── preload.js           # Exposes window.electronAPI to renderer
-├── public/
-│   └── index.html           # HTML entry point
 ├── src/
 │   ├── components/          # React UI components
-│   │   ├── App.tsx          # Root app component with context setup
-│   │   ├── TreeEditor.tsx   # ReactFlow canvas and tree editing logic
 │   │   ├── BTNode.tsx       # Node component (rendered in canvas)
 │   │   ├── NodePalette.tsx  # Palette with nodes and library subtrees
 │   │   ├── NodePropertiesPanel.tsx # Node field editor panel
 │   │   ├── SubTreeTabBar.tsx       # Tabs for main tree and subtrees
+│   │   ├── TreeEditor.tsx   # @xyflow/react canvas and tree editing logic
 │   │   ├── VariableEditor.tsx      # Variable list and editor
 │   │   ├── WelcomeModal.tsx        # Blocking startup modal
 │   │   └── WorkspaceToolbar.tsx    # (Invisible) Electron menu listener
@@ -28,16 +25,27 @@ btstudio/
 │   │   └── useWorkspaceOps.ts # Workspace operations (open/save/create)
 │   ├── store/
 │   │   └── workspaceStore.tsx # Redux-like state management
+│   ├── test/                # Vitest test suites
+│   │   ├── fixtures/        # XML test fixtures
+│   │   ├── layoutTree.test.ts
+│   │   ├── nodeLibrary.test.ts
+│   │   ├── selectionHelpers.test.ts
+│   │   ├── workspaceStore.test.tsx
+│   │   └── xmlSerializer.test.ts
 │   ├── types/
 │   │   ├── index.ts         # Shared TypeScript types
 │   │   └── electron.d.ts    # Electron preload type definitions
 │   ├── utils/
+│   │   ├── layoutTree.ts    # Tree auto-arrange layout algorithm
+│   │   ├── selectionHelpers.ts # Box-select and clipboard helpers
 │   │   └── xmlSerializer.ts # BehaviorTree.cpp XML parsing and export
 │   ├── App.tsx              # Main app wrapper
 │   ├── App.css              # App-level styles
 │   ├── index.tsx            # React entry point
 │   └── index.css            # Global styles
 ├── build/                   # Production build output (generated)
+├── index.html               # Vite HTML entry point
+├── vite.config.ts           # Vite + Vitest configuration
 ├── package.json
 ├── tsconfig.json
 ├── PROJECT.md               # This file
@@ -60,9 +68,9 @@ The renderer uses these capabilities via `window.electronAPI`:
 
 - `openFolder()`, `openFile()` - native file/folder selection dialogs
 - `readFile(path)`, `writeFile(path, content)` - file I/O
-- `showConfirm()`, `showWarning()`, `showError()` - dialog messages
-- `listFiles(path)` - directory scanning
-- `getFileStats(path)` - modification times for external change detection
+- `showConfirm()`, `showWarning()` - dialog messages
+- `listXmlFiles(path)` - directory scanning
+- `getModifiedTime(path)` - modification times for external change detection
 - `onMenuOpenWorkspace()`, `onMenuOpenTree()`, `onMenuNewTree()`, `onMenuExport()` - menu event listeners
 
 Handlers are registered in `electron/main.js` and consumed by components (primarily `WorkspaceToolbar` and `TreeEditor`).
@@ -82,8 +90,8 @@ Export Tree (developer notes)
 ```typescript
 interface TreeData {
   id: string;                      // Tree ID (e.g., "MainTree", "NavigationSubtree")
-  nodes: Node[];                   // ReactFlow nodes
-  edges: Edge[];                   // ReactFlow edges
+  nodes: Node[];                   // @xyflow/react nodes
+  edges: Edge[];                   // @xyflow/react edges
   variables: Variable[];           // Local variables in this tree
   description?: string;            // Optional subtree description (stored as XML comment)
   ports?: SubTreePort[];           // Input/output port definitions for subtrees
@@ -94,7 +102,7 @@ The `id` field is:
 - For main tree: the filename's stem (e.g., "NavigationTree" from "NavigationTree.xml")
 - For subtrees: any unique string (e.g., "CheckGoal", "MoveRobot")
 
-### Node shape (ReactFlow)
+### Node shape (@xyflow/react)
 
 Nodes have this structure in the canvas:
 
@@ -116,7 +124,7 @@ interface Node {
 }
 ```
 
-All BT node types use the same ReactFlow node type (`'btNode'`) and are differentiated by `data.category` and `data.type`.
+All BT node types use the same @xyflow/react node type (`'btNode'`) and are differentiated by `data.category` and `data.type`.
 
 ### Node fields
 
@@ -267,6 +275,27 @@ When a subtree is loaded or reconciled, ports become editable fields on subtree 
 - `getReferencedSubtreeIds(nodes)` - Lists all subtree IDs referenced by nodes in a tree
 - Variable extraction is automatic during import (scans for `SetBlackboard` nodes)
 
+## Auto-arrange layout
+
+`layoutTree.ts` implements a Reingold-Tilford-inspired tree layout algorithm. It is a pure function that takes nodes and edges and returns new nodes with updated positions.
+
+### Algorithm
+
+1. **Build adjacency tree** from edges, preserving left-to-right child order based on current x-positions.
+2. **Measure subtree widths** bottom-up (leaf nodes use `NODE_WIDTH`, parents are the sum of children widths plus gaps).
+3. **Assign positions** top-down: children are packed tightly left-to-right, and each parent is centered above its children.
+4. **Handle orphans**: Nodes not reachable from root are stacked below the tree.
+
+### Constants
+
+- `NODE_WIDTH = 200` (matches BTNode CSS min-width + padding)
+- `H_GAP = 40` (horizontal gap between sibling subtrees)
+- `V_GAP = 120` (vertical distance between depth levels)
+
+### Usage
+
+The auto-arrange button in the TreeEditor toolbar calls `layoutNodes(nodes, edges)` and updates the canvas. The operation is undoable via the standard history system.
+
 ## UI components
 
 ### App.tsx
@@ -281,9 +310,9 @@ The app uses React Context API to share workspace state and provides callback re
 
 ### TreeEditor.tsx
 
-The main canvas using ReactFlow. Responsibilities:
+The main canvas using @xyflow/react. Responsibilities:
 
-- **Node and edge management**: Maintains ReactFlow state (`useNodesState`, `useEdgesState`)
+- **Node and edge management**: Maintains @xyflow/react state (`useNodesState`, `useEdgesState`)
 - **Connection rules**: Enforces single-input edges per node; control nodes allow multiple outputs, others max one
 - **History/undo-redo**: Maintains `historyPast` and `historyFuture` stacks; uses `isTimeTravelRef` to avoid recording during undo/redo
 - **XML import/export**: Handles `Cmd+S`/`Ctrl+S` saves and menu-triggered exports
@@ -291,18 +320,20 @@ The main canvas using ReactFlow. Responsibilities:
 - **Variable integration**: Manages DeclareVariable nodes when variables are added/removed
 - **DeclareVariable node creation**: Uses callback ref from App to create nodes in response to VariableEditor actions
 - **Session persistence**: Stores tree state in `sessionStorage` per tab ID to survive reloads
+- **Auto-arrange**: Recomputes tree layout using a Reingold-Tilford-inspired algorithm (via `layoutTree.ts`)
 
 Key methods:
-- `onNodesChange` / `onEdgesChange` - ReactFlow change handlers
+- `onNodesChange` / `onEdgesChange` - @xyflow/react change handlers
 - `onConnect` - Custom connection validation
 - `onDrop` - Creates nodes from palette drops (sets `Node.type` to `'btNode'`)
 - `handleSave` - Exports to XML and writes file
 - `handleExport` - Shows native save dialog, exports without changing active file
 - `undo()` / `redo()` - History navigation
+- `autoArrange` - Recompute tree layout to eliminate overlaps and edge crossings
 
 ### BTNode.tsx
 
-The ReactFlow node component. Renders:
+The @xyflow/react node component. Renders:
 
 - **Header** with node name and optional custom instance name (`nodeName`)
 - **Fields** with values and value-type indicators (literal vs. variable)
@@ -380,14 +411,15 @@ An invisible component that registers Electron menu event listeners (`onMenuOpen
 
 ### Development
 
-- **`npm start`** - Start React dev server (usually http://localhost:3000)
-- **`npm run electron:dev`** - Concurrently run React dev server and Electron shell. Electron will automatically reload when files change.
-- **`npm test`** - Run tests (using react-scripts test)
+- **`npm run dev`** - Start Vite dev server (http://localhost:3000)
+- **`npm run electron:dev`** - Concurrently run Vite dev server and Electron shell. Electron will automatically reload when files change.
+- **`npm test`** - Run Vitest test suite
+- **`npm run test:watch`** - Run tests in watch mode
 
 ### Production
 
-- **`npm run build`** - Build React production bundle to `build/` directory
-- **`npm run electron:build`** - Build production React bundle and package as Electron installers (macOS `.dmg`, Linux `.AppImage`)
+- **`npm run build`** - Build production bundle to `build/` directory using Vite
+- **`npm run electron:build`** - Build production bundle and package as Electron installers (macOS `.dmg`, Linux `.AppImage`)
 - **`npm run electron:pack`** - Package for current platform only (no installer)
 
 ### Release process
@@ -401,7 +433,7 @@ Releases are automated via GitHub Actions when a version tag is pushed:
 
 See `package.json` build config for platform-specific details (code signing, target architectures, etc.).
 
-**Important**: Auto-update is configured in `electron/main.js` using `electron-updater` and points to GitHub releases.
+**Important**: Auto-update has been removed. Release distribution is manual via GitHub releases.
 
 ## Developer quick reference
 
@@ -521,14 +553,15 @@ History limit is `HISTORY_LIMIT = 20` (configurable).
 
 Shortcuts are registered in `TreeEditor.tsx` via `useEffect` and window event listeners.
 
-### Testing patterns
+### Testing
 
-The app has no automated test suite. For manual testing:
+The app uses Vitest with jsdom for unit testing. Test suites are in `src/test/`:
 
-1. **Tree import/export**: Modify an XML file, open it, save it, check the file contents
-2. **Workspace sync**: Edit a subtree in one file, save it, open another file that references it—the library version should appear
-3. **Variable sync**: Add a variable, edit its value, verify DeclareVariable nodes update
-4. **External changes**: Modify `subtree_library.xml` externally, reload the app, check for warning dialog
+- **`xmlSerializer.test.ts`** (35 tests) - XML import/export round-trip, subtree library, port handling, variable extraction
+- **`workspaceStore.test.tsx`** (15 tests) - Workspace state management, reducer actions, dirty tracking
+- **`nodeLibrary.test.ts`** (26 tests) - Node definitions, category colors, type inference, definition lookup
+
+Run with `npm test`. Fixtures are in `src/test/fixtures/xmlFixtures.ts`.
 
 ### Common debugging
 

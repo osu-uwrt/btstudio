@@ -1,16 +1,24 @@
 /**
- * Workspace State Management
- * 
- * Manages the state of the entire workspace including:
- * - Multiple trees (main tree + subtrees) in the current file
- * - Library subtrees from subtree_library.xml
- * - Workspace folder path and file tracking
- * - Modified subtree tracking for workspace-wide saves
+ * Workspace state management (React Context + useReducer).
+ *
+ * This store is the single source of truth for:
+ *   - The workspace folder path and its XML file listing
+ *   - The active file's main tree and embedded subtrees
+ *   - The subtree library (subtree_library.xml)
+ *   - Dirty / modified tracking for save operations
+ *
+ * Consumers use `useWorkspace()` to access state and dispatch actions.
+ * Heavy side-effects (file I/O, workspace sync) live in
+ * `useWorkspaceOps.ts`, which dispatches into this store.
+ *
+ * Invariants maintained by the reducer:
+ *   - `subtrees` is always a fresh Map copy on mutation (immutable updates).
+ *   - `modifiedSubtreeIds` is cleared on save (CLEAR_MODIFIED_SUBTREES).
+ *   - Switching files (SET_ACTIVE_FILE) resets dirty state.
  */
 
 import React, { createContext, useContext, useReducer, useCallback } from 'react';
-import { Node, Edge } from 'reactflow';
-import { Variable } from '../types';
+import { AppNode, AppEdge, Variable } from '../types';
 import { TreeData } from '../utils/xmlSerializer';
 
 // ============ Types ============
@@ -55,7 +63,7 @@ export type WorkspaceAction =
   | { type: 'SET_ACTIVE_FILE'; path: string; name: string; mainTree: TreeData; subtrees: Map<string, TreeData> }
   | { type: 'SET_LIBRARY_SUBTREES'; subtrees: Map<string, TreeData>; modifiedTime: string | null }
   | { type: 'SET_ACTIVE_TREE'; treeId: string | null }
-  | { type: 'UPDATE_TREE'; treeId: string | null; nodes: Node[]; edges: Edge[]; variables: Variable[] }
+  | { type: 'UPDATE_TREE'; treeId: string | null; nodes: AppNode[]; edges: AppEdge[]; variables: Variable[] }
   | { type: 'ADD_SUBTREE'; subtreeId: string; treeData: TreeData }
   | { type: 'ADD_SUBTREE_FROM_LIBRARY'; subtreeId: string }
   | { type: 'ADD_NEW_SUBTREE_TO_LIBRARY'; subtree: TreeData }
@@ -142,7 +150,7 @@ function workspaceReducer(state: WorkspaceState, action: WorkspaceAction): Works
           isDirty: true,
         };
       } else {
-        // Update subtree - preserve description and ports
+        // Update subtree - preserve description, ports, and color
         const newSubtrees = new Map(state.subtrees);
         const existingSubtree = newSubtrees.get(treeId);
         newSubtrees.set(treeId, {
@@ -152,6 +160,7 @@ function workspaceReducer(state: WorkspaceState, action: WorkspaceAction): Works
           variables: existingSubtree?.variables || variables,
           description: existingSubtree?.description,
           ports: existingSubtree?.ports,
+          color: existingSubtree?.color,
         });
         
         const newModified = new Set(state.modifiedSubtreeIds);
@@ -180,7 +189,7 @@ function workspaceReducer(state: WorkspaceState, action: WorkspaceAction): Works
       const librarySubtree = state.librarySubtrees.get(action.subtreeId);
       if (!librarySubtree) return state;
       
-      // Deep copy the subtree data including ports
+      // Deep copy the subtree data including ports and color
       const subtreeCopy: TreeData = {
         id: librarySubtree.id,
         nodes: JSON.parse(JSON.stringify(librarySubtree.nodes)),
@@ -188,6 +197,7 @@ function workspaceReducer(state: WorkspaceState, action: WorkspaceAction): Works
         variables: [...librarySubtree.variables],
         description: librarySubtree.description,
         ports: librarySubtree.ports ? [...librarySubtree.ports] : undefined,
+        color: librarySubtree.color,
       };
       
       const newSubtrees = new Map(state.subtrees);

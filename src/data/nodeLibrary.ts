@@ -1,25 +1,74 @@
-import { BTNodeDefinition } from '../types';
+/**
+ * Static node library for BTstudio.
+ *
+ * These definitions populate the palette and provide default field templates
+ * when a user drops a node onto the canvas. Subtree nodes are loaded
+ * dynamically from the workspace's subtree_library.xml and are NOT defined
+ * here.
+ *
+ * When adding a new built-in node:
+ *   1. Add its BTNodeDefinition to `nodeLibrary`.
+ *   2. If it has a new category, update `CATEGORY_COLORS`.
+ *   3. Run the nodeLibrary tests to verify.
+ */
 
-// Predefined BehaviorTree node library
+import { BTNodeDefinition, NodeCategory } from '../types';
+
+// ---------------------------------------------------------------------------
+// Category colour map
+// ---------------------------------------------------------------------------
+
+/** Canonical colour for each node category. Used by both palette and canvas. */
+const CATEGORY_COLORS: Record<NodeCategory | 'unknown', string> = {
+  root:      '#F44336',
+  action:    '#4CAF50',
+  condition: '#2196F3',
+  control:   '#FF9800',
+  decorator: '#9C27B0',
+  subtree:   '#00BCD4',
+  unknown:   '#757575',
+} as const;
+
+/**
+ * Return the hex colour associated with a node category.
+ *
+ * Accepts `string` for convenience when the category comes from parsed XML
+ * data where the type may not be narrowed.
+ */
+export function getCategoryColor(category: string): string {
+  return CATEGORY_COLORS[category as NodeCategory] ?? CATEGORY_COLORS.unknown;
+}
+
+// ---------------------------------------------------------------------------
+// Node library
+// ---------------------------------------------------------------------------
+
+/**
+ * Predefined BehaviorTree.cpp v4 node definitions.
+ *
+ * Grouped by category for readability. Each entry becomes a template in the
+ * node palette. Runtime subtree definitions are loaded separately from the
+ * workspace library file.
+ */
 export const nodeLibrary: BTNodeDefinition[] = [
-  // Root Node (special - only one allowed per tree)
+  // -- Root ------------------------------------------------------------------
   {
     id: 'root',
     type: 'Root',
     category: 'root',
     name: 'Root',
     description: 'Root node of the behavior tree',
-    fields: []
+    fields: [],
   },
-  
-  // Control Nodes
+
+  // -- Control ---------------------------------------------------------------
   {
     id: 'sequence',
     type: 'Sequence',
     category: 'control',
     name: 'Sequence',
     description: 'Executes children in order until one fails',
-    fields: []
+    fields: [],
   },
   {
     id: 'fallback',
@@ -27,7 +76,7 @@ export const nodeLibrary: BTNodeDefinition[] = [
     category: 'control',
     name: 'Fallback',
     description: 'Executes children in order until one succeeds',
-    fields: []
+    fields: [],
   },
   {
     id: 'parallel',
@@ -41,9 +90,9 @@ export const nodeLibrary: BTNodeDefinition[] = [
         type: 'number',
         valueType: 'literal',
         value: 1,
-        description: 'Number of children that must succeed'
-      }
-    ]
+        description: 'Number of children that must succeed',
+      },
+    ],
   },
   {
     id: 'reactive_sequence',
@@ -51,7 +100,7 @@ export const nodeLibrary: BTNodeDefinition[] = [
     category: 'control',
     name: 'Reactive Sequence',
     description: 'Like Sequence but re-evaluates from the start',
-    fields: []
+    fields: [],
   },
   {
     id: 'reactive_fallback',
@@ -59,17 +108,17 @@ export const nodeLibrary: BTNodeDefinition[] = [
     category: 'control',
     name: 'Reactive Fallback',
     description: 'Like Fallback but re-evaluates from the start',
-    fields: []
+    fields: [],
   },
-  
-  // Decorator Nodes
+
+  // -- Decorator -------------------------------------------------------------
   {
     id: 'inverter',
     type: 'Inverter',
     category: 'decorator',
     name: 'Inverter',
     description: 'Inverts the result of its child',
-    fields: []
+    fields: [],
   },
   {
     id: 'retry',
@@ -83,9 +132,9 @@ export const nodeLibrary: BTNodeDefinition[] = [
         type: 'number',
         valueType: 'literal',
         value: 3,
-        description: 'Number of retry attempts'
-      }
-    ]
+        description: 'Number of retry attempts',
+      },
+    ],
   },
   {
     id: 'repeat',
@@ -99,9 +148,9 @@ export const nodeLibrary: BTNodeDefinition[] = [
         type: 'number',
         valueType: 'literal',
         value: 1,
-        description: 'Number of cycles to repeat'
-      }
-    ]
+        description: 'Number of cycles to repeat',
+      },
+    ],
   },
   {
     id: 'timeout',
@@ -115,9 +164,9 @@ export const nodeLibrary: BTNodeDefinition[] = [
         type: 'number',
         valueType: 'literal',
         value: 1000,
-        description: 'Timeout in milliseconds'
-      }
-    ]
+        description: 'Timeout in milliseconds',
+      },
+    ],
   },
   {
     id: 'force_success',
@@ -125,7 +174,7 @@ export const nodeLibrary: BTNodeDefinition[] = [
     category: 'decorator',
     name: 'Force Success',
     description: 'Always returns SUCCESS',
-    fields: []
+    fields: [],
   },
   {
     id: 'force_failure',
@@ -133,10 +182,10 @@ export const nodeLibrary: BTNodeDefinition[] = [
     category: 'decorator',
     name: 'Force Failure',
     description: 'Always returns FAILURE',
-    fields: []
+    fields: [],
   },
-  
-  // Action Nodes
+
+  // -- Action ----------------------------------------------------------------
   {
     id: 'action_print',
     type: 'PrintMessage',
@@ -149,9 +198,9 @@ export const nodeLibrary: BTNodeDefinition[] = [
         type: 'string',
         valueType: 'literal',
         value: 'Hello World',
-        description: 'Message to print'
-      }
-    ]
+        description: 'Message to print',
+      },
+    ],
   },
   {
     id: 'action_declare_variable',
@@ -165,16 +214,16 @@ export const nodeLibrary: BTNodeDefinition[] = [
         type: 'string',
         valueType: 'literal',
         value: '',
-        description: 'Variable name'
+        description: 'Variable name',
       },
       {
         name: 'value',
         type: 'string',
         valueType: 'literal',
         value: '',
-        description: 'Initial value'
-      }
-    ]
+        description: 'Initial value',
+      },
+    ],
   },
   {
     id: 'action_set_variable',
@@ -188,16 +237,16 @@ export const nodeLibrary: BTNodeDefinition[] = [
         type: 'string',
         valueType: 'literal',
         value: '',
-        description: 'Variable name'
+        description: 'Variable name',
       },
       {
         name: 'value',
         type: 'string',
         valueType: 'literal',
         value: '',
-        description: 'Value to set'
-      }
-    ]
+        description: 'Value to set',
+      },
+    ],
   },
   {
     id: 'action_delay',
@@ -211,12 +260,12 @@ export const nodeLibrary: BTNodeDefinition[] = [
         type: 'number',
         valueType: 'literal',
         value: 1000,
-        description: 'Delay in milliseconds'
-      }
-    ]
+        description: 'Delay in milliseconds',
+      },
+    ],
   },
-  
-  // Condition Nodes 
+
+  // -- Condition -------------------------------------------------------------
   {
     id: 'condition_check',
     type: 'CheckVariable',
@@ -229,16 +278,16 @@ export const nodeLibrary: BTNodeDefinition[] = [
         type: 'string',
         valueType: 'literal',
         value: '',
-        description: 'Variable to check'
+        description: 'Variable to check',
       },
       {
         name: 'expected_value',
         type: 'string',
         valueType: 'literal',
         value: '',
-        description: 'Expected value'
-      }
-    ]
+        description: 'Expected value',
+      },
+    ],
   },
   {
     id: 'condition_compare',
@@ -252,43 +301,63 @@ export const nodeLibrary: BTNodeDefinition[] = [
         type: 'number',
         valueType: 'literal',
         value: 0,
-        description: 'First value'
+        description: 'First value',
       },
       {
         name: 'operator',
         type: 'string',
         valueType: 'literal',
         value: '==',
-        description: 'Comparison operator (==, !=, <, >, <=, >=)'
+        description: 'Comparison operator (==, !=, <, >, <=, >=)',
       },
       {
         name: 'value_b',
         type: 'number',
         valueType: 'literal',
         value: 0,
-        description: 'Second value'
-      }
-    ]
+        description: 'Second value',
+      },
+    ],
   },
-  
-  // SubTree Nodes are loaded dynamically from the subtree library
+
+  // Subtree nodes are loaded dynamically from the workspace library.
 ];
 
-export const getCategoryColor = (category: string): string => {
-  switch (category) {
-    case 'root':
-      return '#F44336';
-    case 'action':
-      return '#4CAF50';
-    case 'condition':
-      return '#2196F3';
-    case 'control':
-      return '#FF9800';
-    case 'decorator':
-      return '#9C27B0';
-    case 'subtree':
-      return '#00BCD4';
-    default:
-      return '#757575';
+// ---------------------------------------------------------------------------
+// Lookup helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Map from BT XML tag name (e.g. "Sequence") to its NodeCategory.
+ * Lazily built from `nodeLibrary` so it always stays in sync.
+ */
+const nodeTypeToCategory = new Map<string, NodeCategory>(
+  nodeLibrary.map((def) => [def.type, def.category]),
+);
+
+/**
+ * Infer the category of a BT node from its XML tag name.
+ *
+ * Checks the node library first, then falls back to naming heuristics
+ * for user-defined nodes not in the library.
+ */
+export function inferCategoryFromType(nodeType: string): NodeCategory {
+  const known = nodeTypeToCategory.get(nodeType);
+  if (known) return known;
+
+  // Heuristic fallback for unrecognised node types
+  if (nodeType.startsWith('Check') || nodeType.startsWith('Is') || nodeType.startsWith('Has')) {
+    return 'condition';
   }
-};
+
+  // Default unknown leaf nodes to action
+  return 'action';
+}
+
+/**
+ * Look up a node definition by its BT XML tag name (e.g. "Sequence").
+ * Returns `undefined` for dynamically-loaded subtree nodes.
+ */
+export function findDefinitionByType(type: string): BTNodeDefinition | undefined {
+  return nodeLibrary.find((def) => def.type === type);
+}

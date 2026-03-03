@@ -27,7 +27,7 @@ interface UseWorkspaceOpsResult {
   openTreeFile: (filePath?: string) => Promise<boolean>;
   saveWorkspace: () => Promise<boolean>;
   createNewTree: () => Promise<void>;
-  createNewSubtree: (name: string, description?: string, ports?: SubTreePort[]) => void;
+  createNewSubtree: (name: string, description?: string, ports?: SubTreePort[], color?: string) => void;
   importTreeAsSubtree: (filePath: string, subtreeName: string, ports: SubTreePort[]) => Promise<void>;
   isElectron: boolean;
 }
@@ -105,6 +105,7 @@ export function useWorkspaceOps(): UseWorkspaceOpsResult {
               variables: [...libraryVersion.variables],
               description: libraryVersion.description,
               ports: libraryVersion.ports ? [...libraryVersion.ports] : undefined,
+              color: libraryVersion.color,
             });
           }
         });
@@ -391,7 +392,7 @@ export function useWorkspaceOps(): UseWorkspaceOpsResult {
   /**
    * Create a new subtree and add it to the library
    */
-  const createNewSubtree = useCallback((name: string, description?: string, ports?: SubTreePort[]) => {
+  const createNewSubtree = useCallback((name: string, description?: string, ports?: SubTreePort[], color?: string) => {
     if (!name.trim()) return;
     
     const subtreeId = name.trim().replace(/\s+/g, '_');
@@ -429,6 +430,7 @@ export function useWorkspaceOps(): UseWorkspaceOpsResult {
       variables: [],
       description: description?.trim() || undefined,
       ports: ports || [], // Add ports to subtree definition
+      color: color || undefined,
     };
     
     // Add to library
@@ -485,6 +487,7 @@ export function useWorkspaceOps(): UseWorkspaceOpsResult {
         variables: [...parseResult.mainTree.variables],
         description: `Imported from ${filePath.split('/').pop()}`,
         ports: ports,
+        color: undefined,
       };
       
       // Add to library
@@ -548,7 +551,7 @@ async function checkLibraryDiscrepancies(
  * Update all workspace files that reference modified subtrees
  */
 async function updateWorkspaceFiles(
-  workspacePath: string,
+  _workspacePath: string,
   workspaceFiles: WorkspaceFile[],
   excludePath: string,
   modifiedSubtreeIds: Set<string>,
@@ -578,7 +581,7 @@ async function updateWorkspaceFiles(
       modifiedSubtreeIds.forEach(modifiedId => {
         if (allRefs.includes(modifiedId)) {
           needsUpdate = true;
-          // Update the subtree in this file's data, preserving ports
+          // Update the subtree in this file's data, preserving ports and color
           const updatedSubtree = updatedSubtrees.get(modifiedId);
           if (updatedSubtree) {
             parseResult.subtrees.set(modifiedId, {
@@ -588,6 +591,7 @@ async function updateWorkspaceFiles(
               variables: [...updatedSubtree.variables],
               description: updatedSubtree.description,
               ports: updatedSubtree.ports ? [...updatedSubtree.ports] : undefined,
+              color: updatedSubtree.color,
             });
           }
         }

@@ -1,30 +1,62 @@
+/**
+ * TreeEditor Component
+ *
+ * The main canvas for editing behavior trees. Wraps ReactFlow and wires up:
+ * - Node drag-and-drop from the palette (via `application/reactflow` payload)
+ * - Connection validation (single-incoming, control vs. non-control outgoing limits)
+ * - Undo/redo history (snapshot-based, with `isTimeTravelRef` guard)
+ * - Session persistence through `sessionStorage`
+ * - Bi-directional sync between local ReactFlow state and the workspace store
+ * - DeclareVariable node lifecycle (add/delete/update driven by VariableEditor callbacks)
+ * - Keyboard shortcuts (Ctrl/Cmd+Z undo, Ctrl/Cmd+Shift+Z redo, Ctrl/Cmd+S save)
+ * - Electron menu event integration (save, export)
+ *
+ * Data flow:
+ *   Palette  -->  onDrop  -->  setNodes  --sync-->  workspaceStore
+ *   workspaceStore.activeTree  --load-->  setNodes/setEdges
+ */
+
 import React, { useCallback, useState, useEffect, useRef } from 'react';
-import ReactFlow, {
-  Node,
-  Edge,
+import {
+  ReactFlow,
   Controls,
   Background,
   useNodesState,
   useEdgesState,
   addEdge,
-  Connection,
+  type Connection,
   ConnectionMode,
   Panel,
-  NodeChange,
-} from 'reactflow';
-import 'reactflow/dist/style.css';
-import { BTNodeDefinition, Variable } from '../types';
+  type NodeChange,
+  type ReactFlowInstance,
+  SelectionMode,
+  type OnSelectionChangeParams,
+} from '@xyflow/react';
+import '@xyflow/react/dist/style.css';
+import { BoxSelect, Copy, ClipboardPaste, Trash2, AlignVerticalSpaceAround } from 'lucide-react';
+import { AppNode, AppEdge, BTNodeDefinition, NodeField, Variable } from '../types';
 import { getCategoryColor, nodeLibrary } from '../data/nodeLibrary';
 import { exportToXML, exportMultiTreeToXML } from '../utils/xmlSerializer';
+import {
+  getContainedEdges,
+  buildPastedNodes,
+  remapEdges,
+  getDeleteableNodeIds,
+  ClipboardData,
+} from '../utils/selectionHelpers';
+import { layoutNodes } from '../utils/layoutTree';
 import { useWorkspace } from '../store/workspaceStore';
 import { useWorkspaceOps } from '../hooks/useWorkspaceOps';
 import BTNode from './BTNode';
 import NodePropertiesPanel from './NodePropertiesPanel';
 import './TreeEditor.css';
 
+/** Module-level clipboard so it persists across subtree tab switches. */
+let canvasClipboard: ClipboardData | null = null;
+
 interface TreeEditorProps {
   variables: Variable[];
-  onUpdateNodeField: (nodeId: string, fieldName: string, value: any, valueType: 'literal' | 'variable') => void;
+  onUpdateNodeField: (nodeId: string, fieldName: string, value: string | number | boolean, valueType: 'literal' | 'variable') => void;
   onAddDeclareVariableNode: (callback: (variable: Variable) => void) => void;
   onDeleteDeclareVariableNode: (callback: (variableName: string) => void) => void;
   onUpdateDeclareVariableNode: (callback: (variableName: string, newValue: string) => void) => void;
@@ -47,17 +79,37 @@ const TreeEditor: React.FC<TreeEditorProps> = ({
   onSyncVariables,
   tabId 
 }) => {
-  const [nodes, setNodes, onNodesChange] = useNodesState([]);
-  const [edges, setEdges, onEdgesChange] = useEdgesState([]);
+  const [nodes, setNodes, onNodesChange] = useNodesState<AppNode>([]);
+  const [edges, setEdges, onEdgesChange] = useEdgesState<AppEdge>([]);
   const [selectedNode, setSelectedNode] = useState<string | null>(null);
-  const [reactFlowInstance, setReactFlowInstance] = useState<any>(null);
+  const [reactFlowInstance, setReactFlowInstance] = useState<ReactFlowInstance<AppNode, AppEdge> | null>(null);
   const [lastImportedFile, setLastImportedFile] = useState<string>('behavior_tree.xml');
   const [isSessionChecked, setIsSessionChecked] = useState(false);
+
+  // Box-select mode
+  const [boxSelectMode, setBoxSelectMode] = useState(false);
+  const selectedNodesRef = useRef<AppNode[]>([]);
+  const selectedEdgesRef = useRef<AppEdge[]>([]);
 
   // Workspace integration
   const { state: workspaceState, dispatch: workspaceDispatch, activeTree } = useWorkspace();
   const { saveWorkspace, isElectron } = useWorkspaceOps();
   const isLoadingFromWorkspaceRef = useRef(false);
+
+  /**
+   * Determine the display color for a node definition.
+   * Subtree nodes use their custom color (from library/file) if available,
+   * otherwise fall back to the category default.
+   */
+  const getSubtreeColor = useCallback((nodeDef: BTNodeDefinition): string => {
+    if (nodeDef.category === 'subtree' && nodeDef.subtreeId) {
+      const libColor = workspaceState.librarySubtrees.get(nodeDef.subtreeId)?.color;
+      if (libColor) return libColor;
+      const fileColor = workspaceState.subtrees.get(nodeDef.subtreeId)?.color;
+      if (fileColor) return fileColor;
+    }
+    return getCategoryColor(nodeDef.category);
+  }, [workspaceState.librarySubtrees, workspaceState.subtrees]);
 
   // Initialize with root node on first load
   const hasInitializedRef = useRef(false);
@@ -69,7 +121,7 @@ const TreeEditor: React.FC<TreeEditorProps> = ({
       const declareNodeDef = nodeLibrary.find(n => n.type === 'DeclareVariable');
       if (!declareNodeDef) return;
 
-      const newNode: Node = {
+      const newNode: AppNode = {
         id: `DeclareVariable_${variable.name}_${Date.now()}`,
         type: 'btNode',
         position: { x: 100 + nodes.length * 20, y: 150 + nodes.length * 20 }, // Offset position
@@ -104,7 +156,7 @@ const TreeEditor: React.FC<TreeEditorProps> = ({
       setNodes((prevNodes) => 
         prevNodes.filter((node) => {
           if (node.data?.type === 'DeclareVariable') {
-            const outputKeyField = node.data.fields?.find((f: any) => f.name === 'output_key');
+            const outputKeyField = node.data.fields?.find((f: NodeField) => f.name === 'output_key');
             // Strip brackets for comparison
             const fieldValue = String(outputKeyField?.value || '').replace(/^\{|\}$/g, '');
             return fieldValue !== variableName;
@@ -119,11 +171,11 @@ const TreeEditor: React.FC<TreeEditorProps> = ({
       setNodes((prevNodes) => 
         prevNodes.map((node) => {
           if (node.data?.type === 'DeclareVariable') {
-            const outputKeyField = node.data.fields?.find((f: any) => f.name === 'output_key');
+            const outputKeyField = node.data.fields?.find((f: NodeField) => f.name === 'output_key');
             // Strip brackets for comparison
             const fieldValue = String(outputKeyField?.value || '').replace(/^\{|\}$/g, '');
             if (fieldValue === variableName) {
-              const updatedFields = node.data.fields?.map((f: any) => {
+              const updatedFields = node.data.fields?.map((f: NodeField) => {
                 if (f.name === 'value') {
                   return { ...f, value: newValue };
                 }
@@ -150,8 +202,8 @@ const TreeEditor: React.FC<TreeEditorProps> = ({
     
     nodes.forEach((node) => {
       if (node.data?.type === 'DeclareVariable') {
-        const outputKeyField = node.data.fields?.find((f: any) => f.name === 'output_key');
-        const valueField = node.data.fields?.find((f: any) => f.name === 'value');
+        const outputKeyField = node.data.fields?.find((f: NodeField) => f.name === 'output_key');
+        const valueField = node.data.fields?.find((f: NodeField) => f.name === 'value');
         
         if (outputKeyField && valueField) {
                     // Strip brackets from output_key for variable name
@@ -173,8 +225,8 @@ const TreeEditor: React.FC<TreeEditorProps> = ({
     if (stored) {
       try {
         const parsed = JSON.parse(stored) as {
-          nodes: Node[];
-          edges: Edge[];
+          nodes: AppNode[];
+          edges: AppEdge[];
           lastImportedFile?: string;
         };
         if (parsed.nodes?.length) {
@@ -228,7 +280,7 @@ const TreeEditor: React.FC<TreeEditorProps> = ({
     if (!hasInitializedRef.current && nodes.length === 0) {
       const rootNodeDef = nodeLibrary.find(n => n.category === 'root');
       if (rootNodeDef) {
-        const rootNode: Node = {
+        const rootNode: AppNode = {
           id: 'root_node',
           type: 'btNode',
           position: { x: 250, y: 50 },
@@ -246,14 +298,14 @@ const TreeEditor: React.FC<TreeEditorProps> = ({
 
   // Undo/Redo history
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const [_historyPast, setHistoryPast] = useState<{ nodes: Node[]; edges: Edge[] }[]>([]);
+  const [_historyPast, setHistoryPast] = useState<{ nodes: AppNode[]; edges: AppEdge[] }[]>([]);
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const [_historyFuture, setHistoryFuture] = useState<{ nodes: Node[]; edges: Edge[] }[]>([]);
+  const [_historyFuture, setHistoryFuture] = useState<{ nodes: AppNode[]; edges: AppEdge[] }[]>([]);
   const isTimeTravelRef = useRef(false);
   const isDraggingRef = useRef(false);
-  const nodesRef = useRef<Node[]>(nodes);
-  const edgesRef = useRef<Edge[]>(edges);
-  const prevSnapshotRef = useRef<{ nodes: Node[]; edges: Edge[] }>({ nodes, edges });
+  const nodesRef = useRef<AppNode[]>(nodes);
+  const edgesRef = useRef<AppEdge[]>(edges);
+  const prevSnapshotRef = useRef<{ nodes: AppNode[]; edges: AppEdge[] }>({ nodes, edges });
   const HISTORY_LIMIT = 20;
 
   // keep refs updated
@@ -287,7 +339,7 @@ const TreeEditor: React.FC<TreeEditorProps> = ({
 
     // Custom nodes change handler to detect drag start/end
   const handleNodesChange = useCallback(
-    (changes: NodeChange[]) => {
+    (changes: NodeChange<AppNode>[]) => {
       // Check if any change is a drag start
       const hasDragStart = changes.some((change) => change.type === 'position' && change.dragging === true);
       // Check if any change is a drag end
@@ -359,13 +411,168 @@ const TreeEditor: React.FC<TreeEditorProps> = ({
     return () => window.removeEventListener('keydown', handler);
   }, [undo, redo]);
 
-  
+  // ─── Selection tracking (for box-select copy/paste/delete) ────────────
+  const onSelectionChange = useCallback(({ nodes: selNodes, edges: selEdges }: OnSelectionChangeParams<AppNode, AppEdge>) => {
+    selectedNodesRef.current = selNodes;
+    selectedEdgesRef.current = selEdges;
+  }, []);
 
+  /** Copy selected nodes and their contained edges to the clipboard. */
+  const copySelection = useCallback(() => {
+    const selNodes = selectedNodesRef.current;
+    if (selNodes.length === 0) return;
+
+    const selectedIds = new Set(selNodes.map(n => n.id));
+    const contained = getContainedEdges(selectedIds, edges);
+
+    canvasClipboard = {
+      nodes: JSON.parse(JSON.stringify(selNodes)),
+      edges: JSON.parse(JSON.stringify(contained)),
+    };
+  }, [edges]);
+
+  /** Paste nodes from the clipboard, offsetting positions. */
+  const pasteSelection = useCallback(() => {
+    if (!canvasClipboard || canvasClipboard.nodes.length === 0) return;
+
+    const { nodes: pastedNodes, idMap } = buildPastedNodes(canvasClipboard.nodes, Date.now());
+    const pastedEdges = remapEdges(canvasClipboard.edges, idMap);
+
+    // Deselect existing nodes before adding pasted ones
+    setNodes(nds => [
+      ...nds.map(n => ({ ...n, selected: false })),
+      ...pastedNodes,
+    ]);
+    setEdges(eds => [...eds, ...pastedEdges]);
+  }, [setNodes, setEdges]);
+
+  /** Delete selected nodes and their contained edges. */
+  const deleteSelection = useCallback(() => {
+    const selNodes = selectedNodesRef.current;
+    if (selNodes.length === 0) return;
+
+    const toDelete = getDeleteableNodeIds(new Set(selNodes.map(n => n.id)));
+    if (toDelete.size === 0) return;
+
+    // Remove selected nodes
+    setNodes(nds => nds.filter(n => !toDelete.has(n.id)));
+    // Remove edges where either endpoint was deleted
+    setEdges(eds => eds.filter(e => !toDelete.has(e.source) && !toDelete.has(e.target)));
+  }, [setNodes, setEdges]);
+
+  /** Auto-arrange the tree to eliminate overlaps and crossed edges. */
+  const autoArrange = useCallback(() => {
+    setNodes((currentNodes) => layoutNodes(currentNodes, edgesRef.current));
+    // After layout, fit the view so the full tree is visible
+    setTimeout(() => {
+      reactFlowInstance?.fitView({ padding: 0.15, duration: 300 });
+    }, 50);
+  }, [setNodes, reactFlowInstance]);
+
+  /** Toggle box-select mode on/off. */
+  const toggleBoxSelect = useCallback(() => {
+    setBoxSelectMode(prev => !prev);
+  }, []);
+
+  // Keyboard shortcuts for copy/paste/delete and box-select toggle
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      const isMod = e.ctrlKey || e.metaKey;
+
+      // Shift+B: toggle box-select mode
+      if (e.key.toLowerCase() === 'b' && isMod) {
+        e.preventDefault();
+        toggleBoxSelect();
+        return;
+      }
+
+      // Copy: Ctrl/Cmd+C (only when nodes are selected)
+      if (isMod && e.key.toLowerCase() === 'c' && selectedNodesRef.current.length > 0) {
+        e.preventDefault();
+        copySelection();
+        return;
+      }
+
+      // Paste: Ctrl/Cmd+V
+      if (isMod && e.key.toLowerCase() === 'v' && canvasClipboard) {
+        e.preventDefault();
+        pasteSelection();
+        return;
+      }
+
+      // Delete/Backspace: delete selected nodes
+      if ((e.key === 'Delete' || e.key === 'Backspace') && selectedNodesRef.current.length > 0) {
+        // Don't intercept if the user is typing in an input
+        const tag = (e.target as HTMLElement)?.tagName?.toLowerCase();
+        if (tag === 'input' || tag === 'textarea' || tag === 'select') return;
+        e.preventDefault();
+        deleteSelection();
+        return;
+      }
+    };
+
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [toggleBoxSelect, copySelection, pasteSelection, deleteSelection]);
+
+  // Activate box-select mode while Shift is held
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Shift') setBoxSelectMode(true);
+    };
+    const onKeyUp = (e: KeyboardEvent) => {
+      if (e.key === 'Shift') setBoxSelectMode(false);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    window.addEventListener('keyup', onKeyUp);
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('keyup', onKeyUp);
+    };
+  }, []);
+
+  /**
+   * Validate connections during drag to prevent visually confusing snaps.
+   * Called by ReactFlow before a connection handle lights up / snaps.
+   */
+  const isValidConnection = useCallback(
+    (connection: Connection | AppEdge) => {
+      const source = 'source' in connection ? connection.source : undefined;
+      const target = 'target' in connection ? connection.target : undefined;
+      if (!source || !target) return false;
+
+      // Reject self-connections
+      if (source === target) return false;
+
+      // Reject connections targeting the root node
+      if (target === 'root_node') return false;
+
+      // Reject if target already has an incoming edge
+      const incoming = edgesRef.current.filter(e => e.target === target);
+      if (incoming.length >= 1) return false;
+
+      // Non-control source nodes: allow only one outgoing edge
+      const sourceNode = nodesRef.current.find(n => n.id === source);
+      if (sourceNode && sourceNode.data?.category !== 'control') {
+        const outgoing = edgesRef.current.filter(e => e.source === source);
+        if (outgoing.length >= 1) return false;
+      }
+
+      return true;
+    },
+    [],
+  );
 
   const onConnect = useCallback(
     (params: Connection) => {
       setEdges((eds) => {
         if (!params.target || !params.source) return eds;
+
+        // Reject connections targeting the root node
+        if (params.target === 'root_node') return eds;
+
+        // Reject self-connections
+        if (params.source === params.target) return eds;
 
         // Reject if target already has an incoming connection
         const incoming = eds.filter((e) => e.target === params.target);
@@ -422,11 +629,10 @@ const TreeEditor: React.FC<TreeEditorProps> = ({
         }
       }
       
-      const reactFlowBounds = (event.target as HTMLElement).getBoundingClientRect();
-      const position = reactFlowInstance?.project({
-        x: event.clientX - reactFlowBounds.left,
-        y: event.clientY - reactFlowBounds.top,
-      }) || { x: event.clientX, y: event.clientY };
+      const position = reactFlowInstance?.screenToFlowPosition({
+        x: event.clientX,
+        y: event.clientY,
+      }) ?? { x: event.clientX, y: event.clientY };
 
       // Clean up internal flags before creating node
       const { _isFromLibrary, ...cleanNodeDef } = nodeDef;
@@ -444,7 +650,7 @@ const TreeEditor: React.FC<TreeEditorProps> = ({
         }));
       }
       
-      const newNode: Node = {
+      const newNode: AppNode = {
         id: `${cleanNodeDef.type}_${Date.now()}`,
         type: 'btNode',
         position,
@@ -452,7 +658,7 @@ const TreeEditor: React.FC<TreeEditorProps> = ({
           ...cleanNodeDef,
           fields: nodeFields,
           instanceId: `${cleanNodeDef.type}_${Date.now()}`,
-          color: getCategoryColor(cleanNodeDef.category),
+          color: getSubtreeColor(cleanNodeDef),
         },
       };
 
@@ -461,7 +667,7 @@ const TreeEditor: React.FC<TreeEditorProps> = ({
     [reactFlowInstance, setNodes, nodes, isElectron, workspaceState.subtrees, workspaceDispatch]
   );
 
-  const onNodeClick = useCallback((_event: React.MouseEvent, node: Node) => {
+  const onNodeClick = useCallback((_event: React.MouseEvent, node: AppNode) => {
     setSelectedNode(node.id);
   }, []);
 
@@ -470,15 +676,15 @@ const TreeEditor: React.FC<TreeEditorProps> = ({
   }, []);
 
   const handleUpdateNodeField = useCallback(
-    (nodeId: string, fieldName: string, value: any, valueType: 'literal' | 'variable') => {
+    (nodeId: string, fieldName: string, value: string | number | boolean, valueType: 'literal' | 'variable') => {
       setNodes((prevNodes) =>
         prevNodes.map((node) => {
           if (node.id !== nodeId) return node;
 
-          const existingFields: any[] = (node.data && node.data.fields) ? [...node.data.fields] : [];
+          const existingFields: NodeField[] = (node.data && node.data.fields) ? [...node.data.fields] : [];
 
           let found = false;
-          const updatedFields = existingFields.map((f: any) => {
+          const updatedFields = existingFields.map((f: NodeField) => {
             if (f.name === fieldName) {
               found = true;
               return { ...f, value, valueType };
@@ -487,7 +693,7 @@ const TreeEditor: React.FC<TreeEditorProps> = ({
           });
 
           if (!found) {
-            updatedFields.push({ name: fieldName, value, valueType });
+            updatedFields.push({ name: fieldName, type: 'string', value, valueType });
           }
 
           return {
@@ -648,17 +854,66 @@ const TreeEditor: React.FC<TreeEditorProps> = ({
         onNodesChange={handleNodesChange}
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
+        isValidConnection={isValidConnection}
         onInit={setReactFlowInstance}
         onDrop={onDrop}
         onDragOver={onDragOver}
         onNodeClick={onNodeClick}
         onPaneClick={onPaneClick}
         nodeTypes={nodeTypes}
-        connectionMode={ConnectionMode.Loose}
+        connectionMode={ConnectionMode.Strict}
+        selectionOnDrag={boxSelectMode}
+        selectionMode={SelectionMode.Partial}
+        panOnDrag={!boxSelectMode}
+        onSelectionChange={onSelectionChange}
         fitView
       >
         <Background />
         <Controls />
+
+        {/* Box-select toolbar */}
+        <Panel position="top-right" className="box-select-panel">
+          <button
+            className={`box-select-btn ${boxSelectMode ? 'active' : ''}`}
+            onClick={toggleBoxSelect}
+            title="Toggle box select (hold Shift or Ctrl/Cmd+B)"
+          >
+            <BoxSelect size={16} />
+          </button>
+          <button
+            className="box-select-action-btn"
+            onClick={copySelection}
+            title="Copy selection (Ctrl/Cmd+C)"
+            disabled={selectedNodesRef.current.length === 0}
+          >
+            <Copy size={14} />
+          </button>
+          <button
+            className="box-select-action-btn"
+            onClick={pasteSelection}
+            title="Paste (Ctrl/Cmd+V)"
+            disabled={!canvasClipboard}
+          >
+            <ClipboardPaste size={14} />
+          </button>
+          <button
+            className="box-select-action-btn danger"
+            onClick={deleteSelection}
+            title="Delete selection (Delete/Backspace)"
+            disabled={selectedNodesRef.current.length === 0}
+          >
+            <Trash2 size={14} />
+          </button>
+          <div className="box-select-divider" />
+          <button
+            className="box-select-action-btn"
+            onClick={autoArrange}
+            title="Auto-arrange tree layout"
+          >
+            <AlignVerticalSpaceAround size={14} />
+          </button>
+        </Panel>
+
         {/* Show current tree indicator when in Electron */}
         {isElectron && workspaceState.activeTreeId !== null && (
           <Panel position="top-center" className="tree-indicator-panel">

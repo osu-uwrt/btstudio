@@ -5,7 +5,7 @@ This document focuses on extending BehaviorTree Studio and running it locally in
 ## Run locally (development)
 
 ### Prerequisites
-- Node.js 18+ recommended
+- Node.js 22+ recommended
 - npm (ships with Node.js)
 
 ### Install dependencies
@@ -22,7 +22,7 @@ This starts the React dev server and the Electron shell together.
 
 ### Optional: run the web UI only
 ```bash
-npm start
+npm run dev
 ```
 
 The web UI can export XML via downloads, but workspace file operations require the Electron shell.
@@ -188,23 +188,16 @@ Each component has a dedicated CSS file under `src/components/`. Global styles a
 
 ### Change category colors
 
-Edit `getCategoryColor` in [src/data/nodeLibrary.ts](src/data/nodeLibrary.ts).
+Edit `CATEGORY_COLORS` in [src/data/nodeLibrary.ts](src/data/nodeLibrary.ts).
 
 ```typescript
-export const getCategoryColor = (category: string): string => {
-  switch (category) {
-    case 'action':
-      return '#4CAF50';
-    case 'condition':
-      return '#2196F3';
-    case 'control':
-      return '#FF9800';
-    case 'decorator':
-      return '#9C27B0';
-    case 'subtree':
-      return '#00BCD4';
-    default:
-      return '#757575';
-  }
+export const CATEGORY_COLORS: Record<NodeCategory | 'unknown', string> = {
+  root: '#F44336',
+  action: '#4CAF50',
+  condition: '#2196F3',
+  control: '#FF9800',
+  decorator: '#9C27B0',
+  subtree: '#00BCD4',
+  unknown: '#757575',
 };
 ```
