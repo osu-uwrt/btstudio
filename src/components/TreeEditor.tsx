@@ -10,10 +10,12 @@
  * - DeclareVariable node lifecycle (add/delete/update driven by VariableEditor callbacks)
  * - Keyboard shortcuts (Ctrl/Cmd+Z undo, Ctrl/Cmd+Shift+Z redo, Ctrl/Cmd+S save)
  * - Electron menu event integration (save, export)
+ * - In-place subtree expansion with full editing support
  *
  * Data flow:
  *   Palette  -->  onDrop  -->  setNodes  --sync-->  workspaceStore
  *   workspaceStore.activeTree  --load-->  setNodes/setEdges
+ *   BTNode expand button --> handleExpandSubtree --> workspaceStore.expandedSubtrees
  */
 
 import React, { useCallback, useState, useEffect, useRef } from 'react';
@@ -34,7 +36,7 @@ import {
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { BoxSelect, Copy, ClipboardPaste, Trash2, AlignVerticalSpaceAround } from 'lucide-react';
-import { AppNode, AppEdge, BTNodeDefinition, NodeField, Variable } from '../types';
+import { AppNode, AppEdge, BTNodeDefinition, NodeField, Variable, ExpandedSubtreeLevel, ExpandedSubtreeInstance } from '../types';
 import { getCategoryColor, nodeLibrary } from '../data/nodeLibrary';
 import { exportToXML, exportMultiTreeToXML } from '../utils/xmlSerializer';
 import {
@@ -44,10 +46,21 @@ import {
   getDeleteableNodeIds,
   ClipboardData,
 } from '../utils/selectionHelpers';
+import {
+  findExistingExpansion,
+  removeExpandedInstance,
+  generateInstanceKey,
+  validateSubtreeExpansion,
+  extendHierarchy,
+  truncateHierarchy,
+  createExpandedInstance,
+  updateExpandedInstanceCache,
+} from '../utils/expandedSubtrees';
 import { layoutNodes } from '../utils/layoutTree';
 import { useWorkspace } from '../store/workspaceStore';
 import { useWorkspaceOps } from '../hooks/useWorkspaceOps';
 import BTNode from './BTNode';
+import BreadcrumbNavigation from './BreadcrumbNavigation';
 import NodePropertiesPanel from './NodePropertiesPanel';
 import './TreeEditor.css';
 
@@ -64,9 +77,10 @@ interface TreeEditorProps {
   tabId: string;
 }
 
-const nodeTypes = {
-  btNode: BTNode,
-};
+// Factory function to create BTNode with the expand handler
+function createBTNodeWithHandler(onExpandSubtree: (nodeInstanceId: string, subtreeId: string) => void) {
+  return (props: any) => <BTNode {...props} onExpandSubtree={onExpandSubtree} />;
+}
 
 
 
@@ -91,10 +105,19 @@ const TreeEditor: React.FC<TreeEditorProps> = ({
   const selectedNodesRef = useRef<AppNode[]>([]);
   const selectedEdgesRef = useRef<AppEdge[]>([]);
 
+  // Expanded subtrees management
+  const [expandedHierarchy, setExpandedHierarchy] = useState<ExpandedSubtreeLevel[]>([]);
+  const [expandedInstances, setExpandedInstances] = useState<Map<string, ExpandedSubtreeInstance>>(new Map());
+
   // Workspace integration
   const { state: workspaceState, dispatch: workspaceDispatch, activeTree } = useWorkspace();
   const { saveWorkspace, isElectron } = useWorkspaceOps();
   const isLoadingFromWorkspaceRef = useRef(false);
+
+  // Create nodeTypes dynamically (will be set after handleExpandSubtree is defined)
+  const [nodeTypes, setNodeTypes] = useState<any>({
+    btNode: BTNode,
+  });
 
   /**
    * Determine the display color for a node definition.
@@ -731,6 +754,206 @@ const TreeEditor: React.FC<TreeEditorProps> = ({
       );
     },
     [setNodes]
+  );
+
+  /**
+   * Handle subtree expansion in-place.
+   *
+   * When a user clicks the expand button on a subtree node:
+   * 1. Validate that expansion won't create recursion
+   * 2. Check if this subtree is already expanded elsewhere (auto-collapse other instance)
+   * 3. Save current canvas state to cache
+   * 4. Switch to displaying the expanded subtree's content
+   * 5. Update the hierarchy breadcrumb
+   */
+  const handleExpandSubtree = useCallback(
+    (nodeInstanceId: string, subtreeId: string) => {
+      // Validate the expansion is safe and possible
+      const allSubtrees = new Map([
+        ...Array.from(workspaceState.librarySubtrees.entries()),
+        ...Array.from(workspaceState.subtrees.entries()),
+      ]);
+
+      const validation = validateSubtreeExpansion(
+        subtreeId,
+        workspaceState.activeTreeId,
+        expandedHierarchy,
+        allSubtrees,
+      );
+
+      if (!validation.isValid) {
+        console.warn(`Cannot expand subtree: ${validation.reason}`);
+        if (isElectron && window.electronAPI) {
+          window.electronAPI.showWarning({
+            title: 'Cannot Expand Subtree',
+            message: validation.reason || 'Invalid expansion',
+          });
+        } else {
+          alert(validation.reason || 'Cannot expand subtree');
+        }
+        return;
+      }
+
+      // Check if this subtree is already expanded elsewhere
+      const existingExpansion = findExistingExpansion(subtreeId, expandedInstances);
+      if (existingExpansion) {
+        // Auto-collapse the existing instance
+        console.log(`Subtree '${subtreeId}' already expanded at level ${existingExpansion.level.length}. Collapsing to expand here.`);
+        setExpandedInstances((prevInstances) =>
+          removeExpandedInstance(existingExpansion.instanceKey, prevInstances)
+        );
+      }
+
+      // Save current state to cache before switching
+      const currentInstanceKey = expandedHierarchy.length === 0
+        ? null
+        : expandedInstances.get(
+            generateInstanceKey(
+              expandedHierarchy[expandedHierarchy.length - 1].nodeInstanceId,
+              expandedHierarchy[expandedHierarchy.length - 1].subtreeId,
+              expandedHierarchy.slice(0, -1)
+            )
+          )?.instanceKey;
+
+      if (currentInstanceKey && expandedHierarchy.length > 0) {
+        setExpandedInstances((prevInstances) => {
+          const updated = new Map(prevInstances);
+          const instance = updated.get(currentInstanceKey);
+          if (instance) {
+            updated.set(currentInstanceKey, updateExpandedInstanceCache(instance, nodes, edges, variables));
+          }
+          return updated;
+        });
+      }
+
+      // Create the new hierarchy level
+      const newHierarchy = extendHierarchy(expandedHierarchy, subtreeId, nodeInstanceId);
+
+      // Get the subtree data
+      const subtreeData = workspaceState.subtrees.get(subtreeId) || workspaceState.librarySubtrees.get(subtreeId);
+      if (!subtreeData) {
+        console.error(`Subtree '${subtreeId}' not found`);
+        return;
+      }
+
+      // Create the expanded instance with cached state
+      const newInstance = createExpandedInstance(
+        nodeInstanceId,
+        subtreeId,
+        newHierarchy,
+        nodes,
+        edges,
+        variables,
+      );
+
+      // Update state to show expanded subtree
+      setExpandedHierarchy(newHierarchy);
+      setExpandedInstances((prev) => new Map(prev).set(newInstance.instanceKey, newInstance));
+
+      // Load the expanded subtree's content
+      setNodes(subtreeData.nodes.map(n => ({ ...n, data: { ...n.data, isExpanded: false } })));
+      setEdges(subtreeData.edges);
+      onSyncVariables(subtreeData.variables);
+    },
+    [
+      nodes,
+      edges,
+      variables,
+      expandedHierarchy,
+      expandedInstances,
+      workspaceState,
+      onSyncVariables,
+      setNodes,
+      setEdges,
+      isElectron,
+    ]
+  );
+
+  /**
+   * Handle collapsing an expanded subtree.
+   *
+   * Restores the previous level's content from cache or from workspace store.
+   */
+  const handleCollapseSubtree = useCallback(() => {
+    if (expandedHierarchy.length === 0) {
+      console.warn('Not in an expanded subtree');
+      return;
+    }
+
+    // Find the parent level
+    const parentLevel = expandedHierarchy.length > 1
+      ? expandedHierarchy[expandedHierarchy.length - 2]
+      : null;
+
+    // Save current state before moving back
+    if (expandedHierarchy.length > 0) {
+      const currentInstanceKey = generateInstanceKey(
+        expandedHierarchy[expandedHierarchy.length - 1].nodeInstanceId,
+        expandedHierarchy[expandedHierarchy.length - 1].subtreeId,
+        expandedHierarchy.slice(0, -1)
+      );
+
+      setExpandedInstances((prev) => {
+        const updated = new Map(prev);
+        const instance = updated.get(currentInstanceKey);
+        if (instance) {
+          updated.set(currentInstanceKey, updateExpandedInstanceCache(instance, nodes, edges, variables));
+        }
+        return updated;
+      });
+    }
+
+    // Move back one level
+    const newHierarchy = truncateHierarchy(expandedHierarchy, expandedHierarchy.length - 1);
+    setExpandedHierarchy(newHierarchy);
+
+    // Restore content from cache or workspace
+    if (newHierarchy.length === 0) {
+      // Back to main tree
+      const mainTree = workspaceState.mainTree;
+      if (mainTree) {
+        setNodes(mainTree.nodes.map(n => ({ ...n, data: { ...n.data, isExpanded: false } })));
+        setEdges(mainTree.edges);
+        onSyncVariables(mainTree.variables);
+      }
+    } else {
+      // Back to a parent expanded subtree - restore from cache
+      const parentInstanceKey = generateInstanceKey(
+        newHierarchy[newHierarchy.length - 1].nodeInstanceId,
+        newHierarchy[newHierarchy.length - 1].subtreeId,
+        newHierarchy.slice(0, -1)
+      );
+
+      const parentInstance = expandedInstances.get(parentInstanceKey);
+      if (parentInstance?.cachedState) {
+        const { nodes: cachedNodes, edges: cachedEdges, variables: cachedVars } = parentInstance.cachedState;
+        setNodes(cachedNodes);
+        setEdges(cachedEdges);
+        onSyncVariables(cachedVars);
+      }
+    }
+
+    // Clean up the expanded instance
+    if (expandedHierarchy.length > 0) {
+      const collapsedInstanceKey = generateInstanceKey(
+        expandedHierarchy[expandedHierarchy.length - 1].nodeInstanceId,
+        expandedHierarchy[expandedHierarchy.length - 1].subtreeId,
+        expandedHierarchy.slice(0, -1)
+      );
+      setExpandedInstances((prev) => removeExpandedInstance(collapsedInstanceKey, prev));
+    }
+  },
+    [
+      expandedHierarchy,
+      expandedInstances,
+      nodes,
+      edges,
+      variables,
+      workspaceState.mainTree,
+      onSyncVariables,
+      setNodes,
+      setEdges,
+    ]
   );
 
   // Export tree to XML with file picker (shows save dialog in Electron and writes a copy — does NOT open the file)
