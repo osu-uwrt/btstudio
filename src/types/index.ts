@@ -168,6 +168,8 @@ export interface BTNodeData {
   instanceId: string;
   /** Display colour (hex or CSS colour). */
   color: string;
+  /** For subtree nodes: whether this subtree is currently expanded in-place. */
+  isExpanded?: boolean;
 }
 
 /** ReactFlow node carrying BTstudio-specific data. */
@@ -175,6 +177,45 @@ export type AppNode = XYFlowNode<BTNodeData>;
 
 /** ReactFlow edge (no custom data needed). */
 export type AppEdge = XYFlowEdge;
+
+// ---------------------------------------------------------------------------
+// Subtree Expansion State
+// ---------------------------------------------------------------------------
+
+/**
+ * Represents a single level in the expanded subtree hierarchy.
+ * Used for tracking nested expansions and generating breadcrumb navigation.
+ */
+export interface ExpandedSubtreeLevel {
+  /** The subtree ID being expanded (e.g. "Navigation", "MovementHandler") */
+  subtreeId: string;
+  /** The instance ID of the subtree node that triggered this expansion */
+  nodeInstanceId: string;
+  /** The parent tree ID (either null for main, or another subtree ID) */
+  parentTreeId: string | null;
+}
+
+/**
+ * Tracks a single expanded subtree instance with its cached state.
+ * Multiple instances of the same subtree may be expanded at the same time
+ * in different parent contexts (e.g., both in MainTree and in another subtree).
+ */
+export interface ExpandedSubtreeInstance {
+  /** Unique key combining nodeInstanceId + subtree hierarchy for deduplication */
+  instanceKey: string;
+  /** The subtree ID being expanded */
+  subtreeId: string;
+  /** The instance ID of the subtree node */
+  nodeInstanceId: string;
+  /** Hierarchy level (0 = direct child of main tree, 1 = child of expanded subtree, etc.) */
+  level: ExpandedSubtreeLevel[];
+  /** Cached nodes/edges/variables for this expansion (in-memory only, not persisted) */
+  cachedState?: {
+    nodes: AppNode[];
+    edges: AppEdge[];
+    variables: Variable[];
+  };
+}
 
 // ---------------------------------------------------------------------------
 // Application State

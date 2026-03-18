@@ -5,6 +5,9 @@
  * and subtree port labels. Used as the `btNode` custom node type in the
  * ReactFlow canvas.
  *
+ * For subtree nodes, displays an expand button to open the subtree in-place,
+ * allowing users to navigate nested subtrees without switching tabs.
+ *
  * Data shape comes from BTNodeInstance, but ReactFlow passes it as
  * `data: Record<string, any>`, so we define a narrowed `BTNodeData`
  * interface here.
@@ -12,6 +15,7 @@
 
 import React, { memo } from 'react';
 import { Handle, Position } from '@xyflow/react';
+import { ChevronDown } from 'lucide-react';
 import './BTNode.css';
 
 // ---------------------------------------------------------------------------
@@ -32,12 +36,15 @@ interface BTNodeData {
   color: string;
   nodeName?: string;
   subtreeId?: string;
+  instanceId: string;
+  isExpanded?: boolean;
   fields: DisplayField[];
 }
 
 interface BTNodeProps {
   data: BTNodeData;
   selected: boolean;
+  onExpandSubtree?: (nodeInstanceId: string, subtreeId: string) => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -80,7 +87,7 @@ function FieldRow({ field, portLabel }: { field: DisplayField; portLabel?: strin
 // Component
 // ---------------------------------------------------------------------------
 
-const BTNode: React.FC<BTNodeProps> = ({ data, selected }) => {
+const BTNode: React.FC<BTNodeProps> = ({ data, selected, onExpandSubtree }) => {
   const displayLabel = data.nodeName || '';
   const isSubtree = data.category === 'subtree';
   const isRoot = data.category === 'root';
@@ -89,6 +96,14 @@ const BTNode: React.FC<BTNodeProps> = ({ data, selected }) => {
   const inputFields = isSubtree ? data.fields.filter((f) => f.portDirection === 'input') : [];
   const outputFields = isSubtree ? data.fields.filter((f) => f.portDirection === 'output') : [];
   const regularFields = isSubtree ? data.fields.filter((f) => !f.portDirection) : data.fields;
+
+  // Handle subtree expansion
+  const handleExpandClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (isSubtree && data.subtreeId && onExpandSubtree) {
+      onExpandSubtree(data.instanceId, data.subtreeId);
+    }
+  };
 
   return (
     <div
@@ -101,6 +116,18 @@ const BTNode: React.FC<BTNodeProps> = ({ data, selected }) => {
       <div className="node-header" style={{ backgroundColor: data.color }}>
         <div className="node-title">{data.name}</div>
         {displayLabel && <div className="node-category">{displayLabel}</div>}
+        
+        {/* Expand button for subtree nodes */}
+        {isSubtree && (
+          <button
+            className={`expand-subtree-button ${data.isExpanded ? 'expanded' : ''}`}
+            onClick={handleExpandClick}
+            title={data.isExpanded ? 'Collapse' : 'Expand subtree'}
+            aria-label={data.isExpanded ? 'Collapse subtree' : 'Expand subtree'}
+          >
+            <ChevronDown size={14} />
+          </button>
+        )}
       </div>
 
       {/* Subtree input ports */}

@@ -1,0 +1,57 @@
+/**
+ * BreadcrumbNavigation.css
+ *
+ * Styles for the breadcrumb navigation showing the expanded subtree hierarchy.
+ */
+
+.breadcrumb-navigation {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 12px;
+  background-color: var(--vscode-editor-background, #1e1e1e);
+  border-bottom: 1px solid var(--vscode-editorGroup-border, #2d2d2d);
+  overflow-x: auto;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.breadcrumb-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  background: none;
+  border: none;
+  border-radius: 3px;
+  color: var(--vscode-foreground, #cccccc);
+  cursor: pointer;
+  font-family: var(--vscode-font-family, 'Segoe UI', sans-serif);
+  font-size: 12px;
+  transition: background-color 0.15s ease;
+}
+
+.breadcrumb-item:not(.active):hover {
+  background-color: var(--vscode-button-hoverBackground, #2d2d2d);
+}
+
+.breadcrumb-item.active {
+  color: var(--vscode-textLink-activeForeground, #4fc1ff);
+  font-weight: 500;
+}
+
+.breadcrumb-icon {
+  flex-shrink: 0;
+  opacity: 0.8;
+}
+
+.breadcrumb-label {
+  flex-shrink: 0;
+}
+
+.breadcrumb-separator {
+  flex-shrink: 0;
+  color: var(--vscode-foreground, #cccccc);
+  opacity: 0.5;
+  margin: 0 2px;
+}

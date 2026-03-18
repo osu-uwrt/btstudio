@@ -126,3 +126,38 @@
   color: #FF9800;
   background: rgba(255, 152, 0, 0.2);
 }
+
+/* Expand subtree button */
+.expand-subtree-button {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 24px;
+  height: 24px;
+  padding: 2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.2);
+  border: none;
+  border-radius: 4px;
+  color: #ffffff;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  z-index: 10;
+}
+
+.expand-subtree-button:hover {
+  background: rgba(0, 0, 0, 0.4);
+  transform: scale(1.1);
+}
+
+.expand-subtree-button.expanded {
+  transform: rotate(180deg);
+}
+
+/* Make node-header position relative for absolute positioning of button */
+.node-header {
+  position: relative;
+}
+

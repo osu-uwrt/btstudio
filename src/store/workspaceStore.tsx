@@ -18,7 +18,7 @@
  */
 
 import React, { createContext, useContext, useReducer, useCallback } from 'react';
-import { AppNode, AppEdge, Variable } from '../types';
+import { AppNode, AppEdge, Variable, ExpandedSubtreeLevel, ExpandedSubtreeInstance } from '../types';
 import { TreeData } from '../utils/xmlSerializer';
 
 // ============ Types ============
@@ -49,6 +49,10 @@ export interface WorkspaceState {
   librarySubtrees: Map<string, TreeData>;
   libraryModifiedTime: string | null;
   
+  // Expanded subtrees hierarchy and instances
+  expandedSubtreeHierarchy: ExpandedSubtreeLevel[]; // Current navigation path in expanded subtrees
+  expandedSubtreeInstances: Map<string, ExpandedSubtreeInstance>; // All expanded instances with cached state
+  
   // Track modifications
   isDirty: boolean;
   modifiedSubtreeIds: Set<string>; // Subtrees modified since last save
@@ -71,7 +75,12 @@ export type WorkspaceAction =
   | { type: 'MARK_SUBTREE_MODIFIED'; subtreeId: string }
   | { type: 'CLEAR_MODIFIED_SUBTREES' }
   | { type: 'UPDATE_FILE_MODIFIED_TIME'; filePath: string; modifiedTime: string }
-  | { type: 'REFRESH_WORKSPACE_FILES'; files: WorkspaceFile[] };
+  | { type: 'REFRESH_WORKSPACE_FILES'; files: WorkspaceFile[] }
+  // Expanded subtrees actions
+  | { type: 'EXPAND_SUBTREE'; instance: ExpandedSubtreeInstance }
+  | { type: 'COLLAPSE_SUBTREE'; instanceKey: string }
+  | { type: 'COLLAPSE_ALL_SUBTREES' }
+  | { type: 'UPDATE_EXPANDED_SUBTREE_CACHE'; instanceKey: string; nodes: AppNode[]; edges: AppEdge[]; variables: Variable[] };
 
 // ============ Initial State ============
 
@@ -85,6 +94,8 @@ const initialState: WorkspaceState = {
   activeTreeId: null,
   librarySubtrees: new Map(),
   libraryModifiedTime: null,
+  expandedSubtreeHierarchy: [],
+  expandedSubtreeInstances: new Map(),
   isDirty: false,
   modifiedSubtreeIds: new Set(),
   fileModifiedTimes: new Map(),
@@ -117,6 +128,8 @@ function workspaceReducer(state: WorkspaceState, action: WorkspaceAction): Works
         mainTree: action.mainTree,
         subtrees: new Map(action.subtrees),
         activeTreeId: null, // Reset to main tree
+        expandedSubtreeHierarchy: [], // Reset expansion hierarchy
+        expandedSubtreeInstances: new Map(), // Clear all expanded instances
         isDirty: false,
         modifiedSubtreeIds: new Set(),
       };
@@ -262,6 +275,54 @@ function workspaceReducer(state: WorkspaceState, action: WorkspaceAction): Works
         ...state,
         workspaceFiles: action.files,
       };
+    
+    // ───── Expanded Subtrees Management ─────
+    
+    case 'EXPAND_SUBTREE': {
+      const newInstances = new Map(state.expandedSubtreeInstances);
+      newInstances.set(action.instance.instanceKey, action.instance);
+      return {
+        ...state,
+        expandedSubtreeInstances: newInstances,
+      };
+    }
+    
+    case 'COLLAPSE_SUBTREE': {
+      const newInstances = new Map(state.expandedSubtreeInstances);
+      newInstances.delete(action.instanceKey);
+      return {
+        ...state,
+        expandedSubtreeInstances: newInstances,
+      };
+    }
+    
+    case 'COLLAPSE_ALL_SUBTREES': {
+      return {
+        ...state,
+        expandedSubtreeHierarchy: [],
+        expandedSubtreeInstances: new Map(),
+      };
+    }
+    
+    case 'UPDATE_EXPANDED_SUBTREE_CACHE': {
+      const instance = state.expandedSubtreeInstances.get(action.instanceKey);
+      if (!instance) return state;
+      
+      const newInstances = new Map(state.expandedSubtreeInstances);
+      newInstances.set(action.instanceKey, {
+        ...instance,
+        cachedState: {
+          nodes: action.nodes,
+          edges: action.edges,
+          variables: action.variables,
+        },
+      });
+      
+      return {
+        ...state,
+        expandedSubtreeInstances: newInstances,
+      };
+    }
     
     default:
       return state;
