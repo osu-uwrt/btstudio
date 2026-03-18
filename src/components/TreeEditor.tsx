@@ -956,6 +956,29 @@ const TreeEditor: React.FC<TreeEditorProps> = ({
     ]
   );
 
+  /**
+   * Navigate to a specific depth in the expansion hierarchy.
+   * Used by breadcrumb navigation to collapse/move to parent levels.
+   */
+  const handleNavigateToDepth = useCallback(
+    (targetDepth: number) => {
+      // targetDepth = 0 means back to main tree
+      // targetDepth = 1 means first expanded subtree, etc.
+      const levelsToRemove = Math.max(0, expandedHierarchy.length - targetDepth);
+      for (let i = 0; i < levelsToRemove; i++) {
+        handleCollapseSubtree();
+      }
+    },
+    [expandedHierarchy.length, handleCollapseSubtree]
+  );
+
+  // Update nodeTypes with expand handler when it changes
+  useEffect(() => {
+    setNodeTypes({
+      btNode: createBTNodeWithHandler(handleExpandSubtree),
+    });
+  }, [handleExpandSubtree]);
+
   // Export tree to XML with file picker (shows save dialog in Electron and writes a copy — does NOT open the file)
   const handleExport = useCallback(async () => {
     try {
@@ -1093,6 +1116,17 @@ const TreeEditor: React.FC<TreeEditorProps> = ({
       >
         <Background />
         <Controls />
+
+        {/* Breadcrumb navigation for expanded subtrees */}
+        {expandedHierarchy.length > 0 && (
+          <Panel position="top-left" className="breadcrumb-panel">
+            <BreadcrumbNavigation
+              hierarchy={expandedHierarchy}
+              activeSubtreeId={expandedHierarchy.length > 0 ? expandedHierarchy[expandedHierarchy.length - 1].subtreeId : undefined}
+              onNavigateTo={handleNavigateToDepth}
+            />
+          </Panel>
+        )}
 
         {/* Box-select toolbar */}
         <Panel position="top-right" className="box-select-panel">

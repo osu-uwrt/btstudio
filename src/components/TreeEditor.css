@@ -120,6 +120,13 @@
 
 /* ── Box-select toolbar ──────────────────────────────────────────── */
 
+.breadcrumb-panel {
+  background: transparent;
+  border: none;
+  padding: 0;
+  margin: 8px;
+}
+
 .box-select-panel {
   display: flex;
   align-items: center;
