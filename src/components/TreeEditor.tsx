@@ -965,11 +965,75 @@ const TreeEditor: React.FC<TreeEditorProps> = ({
       // targetDepth = 0 means back to main tree
       // targetDepth = 1 means first expanded subtree, etc.
       const levelsToRemove = Math.max(0, expandedHierarchy.length - targetDepth);
+      
+      // Create a local copy of the hierarchy to track the navigation
+      let currentHierarchy = expandedHierarchy;
+      
       for (let i = 0; i < levelsToRemove; i++) {
-        handleCollapseSubtree();
+        if (currentHierarchy.length === 0) break;
+
+        // Save current state before moving back
+        if (currentHierarchy.length > 0) {
+          const currentInstanceKey = generateInstanceKey(
+            currentHierarchy[currentHierarchy.length - 1].nodeInstanceId,
+            currentHierarchy[currentHierarchy.length - 1].subtreeId,
+            currentHierarchy.slice(0, -1)
+          );
+
+          setExpandedInstances((prev) => {
+            const updated = new Map(prev);
+            const instance = updated.get(currentInstanceKey);
+            if (instance) {
+              updated.set(currentInstanceKey, updateExpandedInstanceCache(instance, nodes, edges, variables));
+            }
+            return updated;
+          });
+        }
+
+        // Remove the last level
+        currentHierarchy = truncateHierarchy(currentHierarchy, currentHierarchy.length - 1);
+
+        // Restore content from cache or workspace
+        if (currentHierarchy.length === 0) {
+          // Back to main tree
+          const mainTree = workspaceState.mainTree;
+          if (mainTree) {
+            setNodes(mainTree.nodes.map(n => ({ ...n, data: { ...n.data, isExpanded: false } })));
+            setEdges(mainTree.edges);
+            onSyncVariables(mainTree.variables);
+          }
+        } else {
+          // Back to a parent expanded subtree - restore from cache
+          const parentInstanceKey = generateInstanceKey(
+            currentHierarchy[currentHierarchy.length - 1].nodeInstanceId,
+            currentHierarchy[currentHierarchy.length - 1].subtreeId,
+            currentHierarchy.slice(0, -1)
+          );
+
+          const parentInstance = expandedInstances.get(parentInstanceKey);
+          if (parentInstance?.cachedState) {
+            const { nodes: cachedNodes, edges: cachedEdges, variables: cachedVars } = parentInstance.cachedState;
+            setNodes(cachedNodes);
+            setEdges(cachedEdges);
+            onSyncVariables(cachedVars);
+          }
+        }
+
+        // Clean up the expanded instance
+        if (currentHierarchy.length < expandedHierarchy.length - i) {
+          const collapsedInstanceKey = generateInstanceKey(
+            expandedHierarchy[currentHierarchy.length].nodeInstanceId,
+            expandedHierarchy[currentHierarchy.length].subtreeId,
+            currentHierarchy
+          );
+          setExpandedInstances((prev) => removeExpandedInstance(collapsedInstanceKey, prev));
+        }
       }
+
+      // Update the hierarchy state
+      setExpandedHierarchy(currentHierarchy);
     },
-    [expandedHierarchy.length, handleCollapseSubtree]
+    [expandedHierarchy, expandedInstances, nodes, edges, variables, workspaceState.mainTree, onSyncVariables, setNodes, setEdges]
   );
 
   // Update nodeTypes with expand handler when it changes
