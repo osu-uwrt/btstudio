@@ -24,3 +24,5 @@ yarn-error.log*
 /dist/
 /dist-*.zip
 .github/copilot-instructions.md
+/.idea/vcs.xml
+/.idea/workspace.xml
